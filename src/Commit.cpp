@@ -18,15 +18,24 @@ Commit::Commit(
 std::string Commit::serialize() const {
     std::ostringstream output;
 
-    output << "tree " << tree_id_ << "\n";
+    output << "tree "
+           << tree_id_
+           << '\n';
 
     if (!parent_id_.empty()) {
-        output << "parent " << parent_id_ << "\n";
+        output << "parent "
+               << parent_id_
+               << '\n';
     }
 
-    output << "author " << author_ << "\n";
-    output << "\n";
-    output << message_ << "\n";
+    output << "author "
+           << author_
+           << '\n';
+
+    output << '\n';
+
+    output << message_
+           << '\n';
 
     return output.str();
 }

@@ -1,23 +1,45 @@
 #include "Blob.hpp"
+#include "Commit.hpp"
 #include "FileReader.hpp"
 #include "Hash.hpp"
 #include "Index.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
 #include "Status.hpp"
+#include "TreeBuilder.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
+namespace {
+
+std::string get_author() {
+    const char* author =
+        std::getenv("MINI_GIT_AUTHOR");
+
+    if (author != nullptr &&
+        std::string(author).empty() == false) {
+        return author;
+    }
+
+    return "Mini Git User";
+}
+
+}
+
 int main(int argc, char* argv[]) {
     if (argc == 1) {
-        std::cout << "Mini Git\n";
+        std::cout
+            << "Mini Git\n";
+
         return 0;
     }
 
-    const std::string command = argv[1];
+    const std::string command =
+        argv[1];
 
     if (command == "--version") {
         std::cout
@@ -62,7 +84,9 @@ int main(int argc, char* argv[]) {
                 Blob::from_file(argv[2]);
 
             const std::string object_id =
-                Hash::sha256(blob.serialize());
+                Hash::sha256(
+                    blob.serialize()
+                );
 
             std::cout
                 << object_id
@@ -98,6 +122,13 @@ int main(int argc, char* argv[]) {
             Repository repository(
                 std::filesystem::current_path()
             );
+
+            if (!std::filesystem::exists(
+                    repository.git_directory())) {
+                throw std::runtime_error(
+                    "Not a Mini Git repository"
+                );
+            }
 
             ObjectDatabase database(
                 repository.git_directory()
@@ -170,8 +201,19 @@ int main(int argc, char* argv[]) {
 
             index.load();
 
+            std::filesystem::path stored_path =
+                file_path;
+
+            if (stored_path.is_absolute()) {
+                stored_path =
+                    std::filesystem::relative(
+                        stored_path,
+                        std::filesystem::current_path()
+                    );
+            }
+
             index.add({
-                file_path.string(),
+                stored_path.string(),
                 object_id
             });
 
@@ -179,7 +221,7 @@ int main(int argc, char* argv[]) {
 
             std::cout
                 << "Staged: "
-                << file_path
+                << stored_path
                 << '\n';
 
             return 0;
@@ -223,13 +265,16 @@ int main(int argc, char* argv[]) {
                 status.collect();
 
             std::cout
-                << "On branch main\n\n";
+                << "On branch "
+                << repository.current_branch()
+                << "\n\n";
 
             if (!result.modified.empty()) {
                 std::cout
                     << "Changes not staged for commit:\n";
 
-                for (const auto& path : result.modified) {
+                for (const auto& path :
+                     result.modified) {
                     std::cout
                         << "  modified: "
                         << path
@@ -243,7 +288,8 @@ int main(int argc, char* argv[]) {
                 std::cout
                     << "Deleted files:\n";
 
-                for (const auto& path : result.deleted) {
+                for (const auto& path :
+                     result.deleted) {
                     std::cout
                         << "  deleted: "
                         << path
@@ -257,7 +303,8 @@ int main(int argc, char* argv[]) {
                 std::cout
                     << "Untracked files:\n";
 
-                for (const auto& path : result.untracked) {
+                for (const auto& path :
+                     result.untracked) {
                     std::cout
                         << "  "
                         << path
@@ -275,6 +322,108 @@ int main(int argc, char* argv[]) {
                 std::cout
                     << "Working tree clean.\n";
             }
+
+            return 0;
+
+        } catch (const std::exception& e) {
+            std::cerr
+                << "mini-git: "
+                << e.what()
+                << '\n';
+
+            return 1;
+        }
+    }
+
+    if (command == "commit") {
+        if (argc < 4 ||
+            std::string(argv[2]) != "-m") {
+
+            std::cerr
+                << "mini-git: usage: "
+                << "mini-git commit -m \"message\"\n";
+
+            return 1;
+        }
+
+        try {
+            const std::filesystem::path root =
+                std::filesystem::current_path();
+
+            Repository repository(root);
+
+            if (!std::filesystem::exists(
+                    repository.git_directory())) {
+                throw std::runtime_error(
+                    "Not a Mini Git repository"
+                );
+            }
+
+            const std::string message =
+                argv[3];
+
+            if (message.empty()) {
+                throw std::runtime_error(
+                    "Commit message cannot be empty"
+                );
+            }
+
+            Index index(
+                repository.git_directory() /
+                "index"
+            );
+
+            index.load();
+
+            if (index.entries().empty()) {
+                throw std::runtime_error(
+                    "Nothing to commit"
+                );
+            }
+
+            ObjectDatabase database(
+                repository.git_directory()
+            );
+
+            TreeBuilder tree_builder(
+                database
+            );
+
+            const std::string tree_id =
+                tree_builder.build_from_index(
+                    index,
+                    root
+                );
+
+            const std::string parent_id =
+                repository.head_commit();
+
+            Commit commit(
+                tree_id,
+                parent_id,
+                get_author(),
+                message
+            );
+
+            const std::string commit_id =
+                database.store(commit);
+
+            const std::string branch =
+                repository.current_branch();
+
+            repository.update_branch(
+                branch,
+                commit_id
+            );
+
+            std::cout
+                << '['
+                << branch
+                << ' '
+                << commit_id.substr(0, 7)
+                << "] "
+                << message
+                << '\n';
 
             return 0;
 

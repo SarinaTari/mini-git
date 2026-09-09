@@ -34,10 +34,15 @@ The canonical architecture of Mini Git is:
 
 ```text
                               mini-git CLI
+
                                    │
+
                                    ▼
+
                             Command Layer
+
                                    │
+
               ┌────────────────────┼────────────────────┐
               ▼                    ▼                    ▼
          Working Tree            Index             Repository
@@ -104,6 +109,7 @@ Mini Git currently follows this structure:
 
 ```text
 mini-git/
+
 ├── CMakeLists.txt
 ├── README.md
 ├── LICENSE
@@ -166,6 +172,7 @@ Repository initialization creates:
 
 ```text
 .mini-git/
+
 ├── HEAD
 ├── objects/
 └── refs/
@@ -198,6 +205,7 @@ For example:
 
 ```text
 project/
+
 ├── main.cpp
 ├── README.md
 └── src/
@@ -245,6 +253,7 @@ For example:
 
 ```text
 "hello"
+
    │
    ▼
 SHA-256
@@ -364,10 +373,13 @@ Its interface is:
 
 ```cpp
 class FileReader {
+
 public:
+
     static std::string read(
         const std::filesystem::path& path
     );
+
 };
 ```
 
@@ -400,7 +412,7 @@ Filesystem File
   FileReader
       │
       ▼
-Exact Bytes
+  Exact Bytes
 ```
 
 No intentional text conversion is performed.
@@ -587,6 +599,7 @@ Consider:
 
 ```text
 project/
+
 ├── main.cpp
 └── src/
     ├── App.cpp
@@ -642,6 +655,7 @@ For:
 
 ```text
 project/
+
 └── empty/
 ```
 
@@ -649,6 +663,7 @@ Mini Git produces:
 
 ```text
 Root Tree
+
 └── empty → Tree
 ```
 
@@ -739,6 +754,7 @@ Mini Git currently uses a simplified flat object database:
 
 ```text
 .mini-git/
+
 └── objects/
     ├── <object-id-1>
     ├── <object-id-2>
@@ -788,16 +804,22 @@ For example:
 
 ```text
 Blob A
+
 "Hello Mini Git!"
+
       │
       ▼
+
  Object X
 
 
 Blob B
+
 "Hello Mini Git!"
+
       │
       ▼
+
  Object X
 ```
 
@@ -953,8 +975,11 @@ The current representation is:
 
 ```cpp
 struct IndexEntry {
+
     std::string path;
+
     std::string object_id;
+
 };
 ```
 
@@ -1048,10 +1073,14 @@ Conceptually:
 
 ```text
 Index::add(path, object_id)
+
         │
         ▼
+
 Search existing entries
+
         │
+
    ┌────┴────┐
    ▼         ▼
  found     missing
@@ -1173,6 +1202,7 @@ Suppose:
 
 ```text
 main.cpp
+
 Version A
 ```
 
@@ -1186,6 +1216,7 @@ After changing the file:
 
 ```text
 main.cpp
+
 Version B
 ```
 
@@ -1206,7 +1237,7 @@ Version A
   Blob A
     │
     ▼
-  Object Database
+Object Database
 
 
 Version B
@@ -1215,7 +1246,7 @@ Version B
   Blob B
     │
     ▼
-  Object Database
+Object Database
 ```
 
 The Index simply changes which object ID is associated with the path.
@@ -1250,9 +1281,13 @@ The current `StatusResult` contains:
 
 ```cpp
 struct StatusResult {
+
     std::vector<std::string> modified;
+
     std::vector<std::string> deleted;
+
     std::vector<std::string> untracked;
+
 };
 ```
 
@@ -1331,6 +1366,7 @@ For example:
 
 ```text
 project/
+
 ├── main.cpp
 └── src/
     └── App.cpp
@@ -1393,13 +1429,17 @@ The current command reports:
 On branch main
 
 Changes not staged for commit:
+
   modified: main.cpp
 
 Deleted files:
+
   deleted: old.cpp
 
 Untracked files:
+
   notes.txt
+
   src/App.cpp
 ```
 
@@ -1437,11 +1477,17 @@ It does **not yet** implement the complete Git model:
 
 ```text
 HEAD
+
  │
+
  ▼
+
 Index
+
  │
+
  ▼
+
 Working Tree
 ```
 
@@ -1609,6 +1655,7 @@ The planned structure is:
 
 ```text
 .mini-git/
+
 └── refs/
     └── heads/
         ├── main
@@ -1848,7 +1895,7 @@ serialize()
  SHA-256
      │
      ▼
-Object ID
+ Object ID
      │
      ▼
 ObjectDatabase
@@ -2052,13 +2099,21 @@ Examples include:
 
 ```text
 Hash
+
 FileReader
+
 Blob
+
 Tree
+
 Commit
+
 ObjectDatabase
+
 TreeBuilder
+
 Index
+
 Status
 ```
 
@@ -2174,9 +2229,13 @@ The project plans to include educational commands that expose internal behavior:
 
 ```text
 mini-git inspect
+
 mini-git graph
+
 mini-git explain
+
 mini-git stats
+
 mini-git fsck
 ```
 
@@ -2387,14 +2446,20 @@ The major implemented pipeline is:
 
 ```text
                      Working Tree
+
                           │
+
              ┌────────────┼────────────┐
              │            │            │
              ▼            ▼            ▼
+
          FileReader   TreeBuilder    Status
+
              │            │            │
              ▼            ▼            │
+
            Blob          Tree          │
+
              │            │            │
              └──────┬─────┘            │
                     ▼                  │
@@ -2402,10 +2467,10 @@ The major implemented pipeline is:
                     │                  │
                     ▼                  ▼
              Object Storage       Index Comparison
-                    │                  │
-                    │           ┌──────┼──────┐
-                    │           ▼      ▼      ▼
-                    │       modified deleted untracked
+                                       │
+                                ┌──────┼──────┐
+                                ▼      ▼      ▼
+                             modified deleted untracked
                     │
                     ▼
               Object IDs

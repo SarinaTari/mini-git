@@ -151,6 +151,7 @@ add_executable(tree-builder-tests
     src/FileReader.cpp
     src/ObjectDatabase.cpp
     src/Hash.cpp
+    src/Index.cpp
 )
 
 target_include_directories(tree-builder-tests
@@ -215,4 +216,44 @@ target_link_libraries(status-tests
 add_test(
     NAME StatusTests
     COMMAND status-tests
+)
+
+
+# ============================================================
+# Commit tests
+# ============================================================
+
+add_executable(commit-tests
+    tests/CommitTests.cpp
+    src/Commit.cpp
+)
+
+target_include_directories(commit-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME CommitTests
+    COMMAND commit-tests
+)
+
+
+# ============================================================
+# Repository tests
+# ============================================================
+
+add_executable(repository-tests
+    tests/RepositoryTests.cpp
+    src/Repository.cpp
+)
+
+target_include_directories(repository-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME RepositoryTests
+    COMMAND repository-tests
 )
