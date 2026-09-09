@@ -120,9 +120,61 @@ void test_object_database() {
     std::filesystem::remove_all(test_root);
 }
 
+void test_tree_deterministic_order() {
+    Tree first;
+
+    first.add_entry({
+        "z.cpp",
+        "zzz",
+        false
+    });
+
+    first.add_entry({
+        "README.md",
+        "aaa",
+        false
+    });
+
+    first.add_entry({
+        "src",
+        "bbb",
+        true
+    });
+
+    Tree second;
+
+    second.add_entry({
+        "src",
+        "bbb",
+        true
+    });
+
+    second.add_entry({
+        "z.cpp",
+        "zzz",
+        false
+    });
+
+    second.add_entry({
+        "README.md",
+        "aaa",
+        false
+    });
+
+    assert(first.serialize() == second.serialize());
+
+    assert(
+        first.serialize() ==
+        "blob aaa README.md\n"
+        "tree bbb src\n"
+        "blob zzz z.cpp\n"
+    );
+}
+
 int main() {
     test_blob();
     test_tree();
+    test_tree_deterministic_order();
     test_commit();
     test_initial_commit();
     test_object_database();

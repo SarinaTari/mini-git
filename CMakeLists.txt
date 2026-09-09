@@ -27,6 +27,7 @@ add_executable(mini-git
     src/Commit.cpp
     src/FileReader.cpp
     src/ObjectDatabase.cpp
+    src/TreeBuilder.cpp
 )
 
 target_include_directories(mini-git
@@ -133,4 +134,34 @@ target_include_directories(blob-tests
 add_test(
     NAME BlobTests
     COMMAND blob-tests
+)
+
+
+# ============================================================
+# TreeBuilder tests
+# ============================================================
+
+add_executable(tree-builder-tests
+    tests/TreeBuilderTests.cpp
+    src/TreeBuilder.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/ObjectDatabase.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(tree-builder-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(tree-builder-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME TreeBuilderTests
+    COMMAND tree-builder-tests
 )
