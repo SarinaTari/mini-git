@@ -1,25 +1,25 @@
 # Mini Git
 
-A Git-inspired version control system built from scratch in C++.
+A Git-inspired version control system built from scratch in C++20.
 
 Mini Git is an educational systems-programming project designed to explore how modern version control systems work internally.
 
-The project focuses on understanding and implementing core concepts behind Git rather than simply using Git's commands or libraries.
+Rather than simply using Git's commands or libraries, the project progressively implements the fundamental mechanisms behind a version control system, including hashing, content-addressable storage, objects, trees, commits, staging, references, and history.
 
-> **Note:** Mini Git is an educational project inspired by Git. It is not intended to be a replacement for Git and does not aim for full Git compatibility.
+> **Note:** Mini Git is an educational project inspired by Git. It is not intended to replace Git and does not aim for full Git compatibility.
 
 ---
 
 ## Goals
 
-The main goals of Mini Git are to understand and implement:
+The primary goals of Mini Git are to understand and implement the core concepts behind modern version control systems:
 
 * Content-addressable storage
 * Cryptographic hashing
 * Object databases
-* Blobs
-* Trees
-* Commits
+* Blob objects
+* Tree objects
+* Commit objects
 * Staging areas
 * References
 * `HEAD`
@@ -30,12 +30,14 @@ The main goals of Mini Git are to understand and implement:
 * Repository integrity
 * Basic version-control workflows
 
-The project also emphasizes professional C++ development practices such as:
+The project also emphasizes professional C++ development practices:
 
 * C++20
 * CMake
 * Modular architecture
 * Separation of concerns
+* RAII
+* Const correctness
 * Error handling
 * Automated testing
 * Documentation
@@ -43,46 +45,79 @@ The project also emphasizes professional C++ development practices such as:
 
 ---
 
-## Current Status
+# Current Status
 
-Mini Git is being developed incrementally in phases.
+Mini Git is being developed incrementally through multiple implementation phases.
 
-### Implemented
+## Implemented
 
-### Implemented
+### Project Foundation
 
-- C++20 project structure
-- CMake build system
-- Command-line executable
-- `mini-git --version`
-- `mini-git init`
-- Repository initialization
-- `.mini-git/` metadata directory
-- `objects/` directory
-- `refs/heads/` directory
-- Initial `HEAD` reference
-- `HEAD` pointing to `main`
-- Basic repository abstraction
-- SHA-256 hashing
-- OpenSSL-based cryptographic hashing
-- Automated hash tests
-- CTest integration
+* C++20 project structure
+* CMake build system
+* Command-line executable
+* Git-based development workflow
+* Documentation structure
 
-### Planned
+### Repository
+
+* `mini-git --version`
+* `mini-git init`
+* Repository initialization
+* `.mini-git/` metadata directory
+* `objects/` directory
+* `refs/heads/` directory
+* Initial `HEAD` reference
+* `HEAD` pointing to `main`
+* Basic `Repository` abstraction
+
+### Hashing
+
+* SHA-256 hashing
+* OpenSSL integration
+* OpenSSL EVP-based hashing
+* Deterministic hash generation
+* Hexadecimal hash representation
+* Binary-data hashing support
+
+### Object Model
+
+* Common `Object` abstraction
+* `Blob` objects
+* `Tree` objects
+* `Commit` objects
+* Object serialization
+* Tree entries
+* Commit parent relationships
+* Initial commits without parents
+
+### Testing
+
+* Hash unit tests
+* Object serialization tests
+* Known SHA-256 test vectors
+* Determinism tests
+* Binary-data tests
+* CTest integration
+
+---
+
+## Not Yet Implemented
+
+The following major subsystems are planned for future phases:
 
 * Repository discovery
-* Cryptographic hashing
-* Object database
-* Blob objects
-* Tree objects
-* Index / staging area
+* Persistent object database
+* Object storage
+* Object retrieval
 * `mini-git add`
+* Index / staging area
 * `mini-git status`
-* Commits
+* Repository-level commit creation
 * `mini-git commit`
 * `mini-git log`
-* Branches
-* `HEAD` management
+* Reference management
+* Branch management
 * Checkout
 * Diff
 * Merge
@@ -90,26 +125,61 @@ Mini Git is being developed incrementally in phases.
 * Tags
 * Repository integrity checking
 * Garbage collection concepts
-* Performance testing
-* Extensive automated tests
-
-### Educational Features
-
-Mini Git will also contain features designed specifically to make its internal behavior easier to understand:
-
-* `mini-git inspect`
-* `mini-git graph`
-* `mini-git explain`
-* `mini-git stats`
-* `mini-git fsck`
-
-These commands are intended to expose the internal state and behavior of the system rather than simply imitate Git's user interface.
+* Performance benchmarking
+* Extensive integration testing
 
 ---
 
-## Architecture
+# Educational Features
 
-The project is being developed as a layered version-control system.
+Mini Git will eventually include commands specifically designed to expose its internal behavior.
+
+Planned educational commands include:
+
+```text
+mini-git inspect
+mini-git graph
+mini-git explain
+mini-git stats
+mini-git fsck
+```
+
+These commands are intended to make the internal architecture observable rather than simply reproducing Git's command-line interface.
+
+For example:
+
+```bash
+mini-git explain add main.cpp
+```
+
+could eventually explain the internal process:
+
+```text
+Working Tree
+     │
+     ▼
+Read file
+     │
+     ▼
+Create Blob
+     │
+     ▼
+Calculate SHA-256
+     │
+     ▼
+Store Object
+     │
+     ▼
+Update Index
+```
+
+This educational layer is an important part of the project's purpose.
+
+---
+
+# Architecture
+
+Mini Git is being developed as a layered version-control system.
 
 The planned high-level architecture is:
 
@@ -143,15 +213,217 @@ The planned high-level architecture is:
                        HEAD
 ```
 
-The architecture will evolve as new features are implemented.
+Not all components are implemented yet.
+
+The architecture will evolve as additional subsystems are introduced.
+
+For a detailed description of the current and planned architecture, see:
+
+```text
+docs/architecture.md
+```
 
 ---
 
-## Repository Structure
+# Core Concepts
 
-A Mini Git repository contains a hidden `.mini-git` directory.
+Mini Git is built around several fundamental version-control concepts.
 
-The initial repository structure is:
+## Working Tree
+
+The working tree is the collection of files and directories currently present on disk.
+
+```text
+Working Tree
+├── main.cpp
+├── README.md
+└── src/
+    └── app.cpp
+```
+
+It represents the current state of the project files.
+
+---
+
+## Index
+
+The index is the staging area between the working tree and the repository.
+
+The intended workflow is:
+
+```text
+Working Tree
+      │
+      │ mini-git add
+      ▼
+    Index
+      │
+      │ mini-git commit
+      ▼
+   Repository
+```
+
+The index is planned but has not yet been implemented.
+
+---
+
+## Objects
+
+Mini Git represents repository data using three primary object types:
+
+```text
+Object
+├── Blob
+├── Tree
+└── Commit
+```
+
+### Blob
+
+A blob represents file contents.
+
+```text
+File Contents
+      │
+      ▼
+    Blob
+```
+
+A blob does not need to know the filename associated with its contents.
+
+Identical file contents can therefore correspond to the same object.
+
+---
+
+### Tree
+
+A tree represents directory structure.
+
+```text
+Tree
+├── main.cpp  → Blob
+├── README.md → Blob
+└── src/      → Tree
+                  │
+                  └── app.cpp → Blob
+```
+
+Trees connect filenames and directory structure to object identifiers.
+
+---
+
+### Commit
+
+A commit represents a repository snapshot together with metadata and history.
+
+A simplified commit contains:
+
+```text
+Commit
+├── tree
+├── parent
+├── author
+└── message
+```
+
+Commits can reference previous commits:
+
+```text
+Commit C
+   │
+   ▼
+Commit B
+   │
+   ▼
+Commit A
+```
+
+This forms the foundation of the commit history graph.
+
+---
+
+# Hashing
+
+Mini Git uses SHA-256 to generate deterministic object identifiers.
+
+The hashing layer is isolated behind the `Hash` abstraction.
+
+The current hashing pipeline is:
+
+```text
+Data
+ │
+ ▼
+Hash::sha256()
+ │
+ ▼
+OpenSSL EVP
+ │
+ ▼
+SHA-256
+ │
+ ▼
+64-character hexadecimal string
+```
+
+SHA-256 produces:
+
+```text
+256 bits
+   ↓
+32 bytes
+   ↓
+64 hexadecimal characters
+```
+
+For example:
+
+```text
+2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+```
+
+The resulting hash will eventually serve as an object identifier.
+
+---
+
+# Content-Addressable Storage
+
+Mini Git is designed around content-addressable storage.
+
+The basic concept is:
+
+```text
+Object Content
+      │
+      ▼
+   SHA-256
+      │
+      ▼
+  Object ID
+      │
+      ▼
+Object Database
+```
+
+The same content produces the same object identifier.
+
+Therefore:
+
+```text
+same content
+     ↓
+same object ID
+```
+
+This provides the foundation for object identity and deduplication.
+
+Persistent object storage has not yet been implemented.
+
+---
+
+# Repository Structure
+
+A Mini Git repository contains a hidden `.mini-git` directory:
 
 ```text
 project/
@@ -170,17 +442,15 @@ Project files remain in the working tree.
 
 ---
 
-## Repository Initialization
+# Repository Initialization
 
-A repository can be initialized with:
+A repository can currently be initialized with:
 
 ```bash
 mini-git init
 ```
 
-This creates a `.mini-git` directory in the current working directory.
-
-The initial structure is:
+This creates:
 
 ```text
 .mini-git/
@@ -190,7 +460,7 @@ The initial structure is:
 └── HEAD
 ```
 
-The initial `HEAD` file contains:
+The initial `HEAD` contains:
 
 ```text
 ref: refs/heads/main
@@ -198,13 +468,13 @@ ref: refs/heads/main
 
 This means that `HEAD` symbolically refers to the `main` branch.
 
-At this stage, the `main` branch does not yet contain a commit.
+At the current stage, `main` does not yet point to a commit because repository-level commit creation has not been implemented.
 
-The `objects/` directory is also empty because object storage has not yet been implemented.
+The `objects/` directory is currently empty because persistent object storage has not yet been implemented.
 
 ---
 
-## Build
+# Build
 
 Mini Git uses CMake as its build system.
 
@@ -215,15 +485,32 @@ cmake -S . -B build
 cmake --build build
 ```
 
-The executable will be created inside:
+The main executable is generated at:
 
 ```text
 build/mini-git
 ```
 
+### macOS / Homebrew OpenSSL
+
+The project uses OpenSSL for SHA-256 hashing.
+
+On systems where CMake does not automatically locate the Homebrew installation, configure the project with:
+
+```bash
+cmake -S . -B build \
+  -DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl@3
+```
+
+Then build:
+
+```bash
+cmake --build build
+```
+
 ---
 
-## Run
+# Run
 
 Run Mini Git with:
 
@@ -239,7 +526,7 @@ Mini Git
 
 ---
 
-## Check Version
+# Check Version
 
 ```bash
 ./build/mini-git --version
@@ -253,22 +540,22 @@ mini-git version 0.1.0
 
 ---
 
-## Initialize a Repository
+# Initialize a Test Repository
 
-Create a test directory:
+Create a separate directory for testing:
 
 ```bash
 mkdir mini-git-test
 cd mini-git-test
 ```
 
-Run:
+Then run Mini Git:
 
 ```bash
 /path/to/mini-git/build/mini-git init
 ```
 
-Mini Git should create:
+The result should be:
 
 ```text
 mini-git-test/
@@ -279,103 +566,137 @@ mini-git-test/
     └── HEAD
 ```
 
+The `HEAD` file should contain:
+
+```text
+ref: refs/heads/main
+```
+
 Running `init` again should report that a repository already exists.
 
 ---
 
-## Development
+# Testing
+
+Mini Git uses automated tests to validate individual components.
+
+Current tests include:
+
+```text
+tests/
+├── HashTests.cpp
+└── ObjectTests.cpp
+```
+
+The hash tests verify:
+
+* Known SHA-256 values
+* Deterministic hashing
+* Different inputs producing different hashes
+* Binary data handling
+
+The object tests verify:
+
+* Blob serialization
+* Tree serialization
+* Commit serialization
+* Initial commits without parents
+
+CTest is used to execute the test suite.
+
+Run the tests with:
+
+```bash
+ctest --test-dir build
+```
+
+The project will eventually include both unit and integration tests covering repository-level behavior.
+
+---
+
+# Development Workflow
 
 Mini Git itself is version-controlled using Git.
 
 The development workflow is:
 
 ```text
-Modify code
+Modify Code
     ↓
 Build
     ↓
-Run tests
+Run Tests
     ↓
-Inspect behavior
+Inspect Behavior
     ↓
-Commit changes
+Update Documentation
+    ↓
+Commit Changes
     ↓
 Push to GitHub
 ```
 
-Git is used to manage the Mini Git source code.
+Git manages the source code of Mini Git.
 
-Mini Git will later be used to manage separate test repositories.
-
----
-
-## Testing
-
-Automated tests will be added progressively as the implementation grows.
-
-The project will eventually test:
-
-* Repository initialization
-* Hash generation
-* Object creation
-* Object storage
-* Object reading
-* Tree construction
-* Index behavior
-* Status calculation
-* Commit creation
-* References
-* Branches
-* Checkout
-* Diff
-* Merge
-* Conflict handling
-* Repository integrity
-* Error conditions
-* Edge cases
-
-Testing will include both unit tests and integration tests.
+Mini Git will eventually manage separate test repositories.
 
 ---
 
-## Design Philosophy
+# Design Philosophy
 
 Mini Git is intentionally built incrementally.
 
-Instead of immediately implementing a large number of commands, the project first establishes the internal concepts required to understand them.
+Instead of immediately implementing a large collection of commands, the project first establishes the internal mechanisms required to support those commands.
 
-For example:
+The fundamental workflow is:
 
 ```text
 Working Tree
       │
-      ▼
-     add
-      │
+      │ add
       ▼
     Index
       │
+      │ commit
       ▼
-   commit
+    Tree
       │
       ▼
-     Tree
-      │
-      ▼
-    Commit
+   Commit
       │
       ▼
    Branch
       │
       ▼
-     HEAD
+    HEAD
 ```
 
-Each layer will be implemented and tested before building more complex functionality on top of it.
+The object model underneath this workflow is:
+
+```text
+Files
+  │
+  ▼
+Blobs
+  │
+  ▼
+Trees
+  │
+  ▼
+Commits
+  │
+  ▼
+References
+  │
+  ▼
+HEAD
+```
+
+Each subsystem is implemented and tested before more complex functionality is built on top of it.
 
 ---
 
-## Why Build Mini Git?
+# Why Build Mini Git?
 
 Git is commonly used as a command-line tool without requiring users to understand its internal implementation.
 
@@ -383,52 +704,61 @@ Building a simplified version from scratch provides an opportunity to understand
 
 * How files become versioned objects
 * How content-addressable storage works
-* How hashes identify data
-* How commits reference previous commits
+* How cryptographic hashes identify data
+* How objects can be reused
 * How directory structures are represented
-* How branches are implemented
+* How commits reference previous commits
+* How branches are represented
 * How `HEAD` works
 * How staging works
-* How history is represented as a graph
+* How commit history forms a graph
 * How version-control operations manipulate repository state
+* How a systems-oriented C++ application can be designed and tested
 
-This makes Mini Git both a software-engineering project and a systems-programming learning project.
+Mini Git is therefore both a software-engineering project and a systems-programming learning project.
 
 ---
 
-## Technology
+# Technology
 
-### Language
+## Language
 
 C++20
 
-### Build System
+## Build System
 
 CMake
 
-### Development Tools
+## Cryptography
+
+OpenSSL 3
+
+The project currently uses OpenSSL's EVP interface for SHA-256 hashing.
+
+## Development Tools
 
 * Git
 * GitHub
-* Linux / Unix concepts
 * CMake
 * C++ standard library
+* Unix / Linux concepts
 
-### Planned Concepts
+## Standard Library Features
+
+The project currently uses and plans to use facilities including:
 
 * `std::filesystem`
-* Cryptographic hashing
-* Binary file I/O
-* File-system metadata
-* Object serialization
-* Graph structures
-* Repository state management
+* `std::string`
+* `std::vector`
+* File streams
+* Error handling facilities
+* Other C++ standard-library components as required
 
 ---
 
-## Project Structure
+# Project Structure
 
-The source tree currently follows this structure:
+The current source tree is:
 
 ```text
 mini-git/
@@ -436,56 +766,172 @@ mini-git/
 ├── README.md
 ├── LICENSE
 ├── .gitignore
+│
 ├── include/
+│   ├── Repository.hpp
+│   ├── Hash.hpp
+│   ├── Object.hpp
+│   ├── Blob.hpp
+│   ├── Tree.hpp
+│   └── Commit.hpp
+│
 ├── src/
 │   ├── main.cpp
-│   └── Repository.cpp
+│   ├── Repository.cpp
+│   ├── Hash.cpp
+│   ├── Blob.cpp
+│   ├── Tree.cpp
+│   └── Commit.cpp
+│
 ├── tests/
+│   ├── HashTests.cpp
+│   └── ObjectTests.cpp
+│
 └── docs/
     └── architecture.md
 ```
 
-As the project grows, additional modules will be introduced.
+As the project grows, additional modules will be introduced when their responsibilities become necessary.
 
 ---
 
-## Limitations
+# Design Principles
 
-Mini Git is intentionally smaller than Git.
+## Separation of Concerns
 
-It will not attempt to reproduce every Git feature.
+Each component should have a clear responsibility.
 
-In particular, compatibility with real Git is not the primary objective.
+For example:
 
-The priority is:
+```text
+Hash
+    → generates object identifiers
+
+Object
+    → defines the common object interface
+
+Blob
+    → represents file contents
+
+Tree
+    → represents directory structure
+
+Commit
+    → represents snapshots and history
+
+ObjectDatabase
+    → stores and retrieves objects
+
+Repository
+    → manages repository-level state
+
+Index
+    → manages staged files
+
+Reference
+    → manages branch references
+```
+
+Components should not unnecessarily take responsibility for unrelated operations.
+
+---
+
+## Standard C++
+
+Mini Git primarily uses the C++ standard library.
+
+External dependencies are introduced only when they provide a meaningful advantage.
+
+OpenSSL is currently used for cryptographic hashing rather than implementing SHA-256 manually.
+
+---
+
+## RAII
+
+Resources should be managed through C++ lifetime semantics wherever practical.
+
+This includes:
+
+* File streams
+* Memory
+* Locks
+* Other resources introduced later
+
+The codebase will be progressively reviewed for safer and clearer resource management.
+
+---
+
+## Const Correctness
+
+Functions that do not modify an object should be marked `const` where appropriate.
+
+For example:
+
+```cpp
+std::string serialize() const;
+```
+
+This communicates that serialization should not modify the object.
+
+---
+
+## Error Handling
+
+Operations that can fail should detect and report errors clearly.
+
+Examples include:
+
+* Repository already exists
+* Repository does not exist
+* File cannot be opened
+* Object does not exist
+* Invalid object
+* Invalid reference
+* Invalid command
+
+The CLI should provide useful error messages instead of silently failing.
+
+---
+
+# Limitations
+
+Mini Git is intentionally much smaller than Git.
+
+It does not attempt to reproduce every Git feature.
+
+Full compatibility with real Git is not the primary objective.
+
+The priorities are:
 
 ```text
 Understanding
      +
-Correct implementation
+Correct Implementation
      +
-Clean architecture
+Clean Architecture
      +
 Testing
      +
 Documentation
 ```
 
-rather than implementing the maximum number of commands.
+rather than implementing the maximum possible number of commands.
+
+The project uses simplified internal representations where appropriate for educational purposes.
 
 ---
 
-## Roadmap
+# Roadmap
 
-### Phase 0 — Git Concepts
+## Phase 0 — Git Concepts
 
-Understand the fundamental concepts behind Git.
+Understand the fundamental concepts behind version control and Git.
 
-### Phase 1 — Project Setup
+## Phase 1 — Project Setup
 
-Set up the C++20 project, CMake, Git, testing structure, and documentation.
+Establish the C++20 project, CMake, Git workflow, testing structure, and documentation.
 
-### Phase 2 — Repository Initialization
+## Phase 2 — Repository Initialization
 
 Implement:
 
@@ -493,35 +939,43 @@ Implement:
 mini-git init
 ```
 
-### Phase 3 — Hashing
+Create the initial `.mini-git` repository structure and `HEAD`.
 
-Implement deterministic cryptographic object identifiers.
+## Phase 3 — Hashing
 
-### Phase 4 — Object Model
+Implement deterministic cryptographic hashing using SHA-256 and OpenSSL.
 
-Design:
+## Phase 4 — Object Model
+
+Implement the foundational object types:
 
 * Blob
 * Tree
 * Commit
 
-### Phase 5 — Blobs
+and their serialization interfaces.
 
-Store file contents as objects.
+## Phase 5 — Blob Objects
 
-### Phase 6 — Object Database
+Connect blobs to real file contents and establish the first complete object-identity workflow.
 
-Implement object storage and retrieval.
+## Phase 6 — Object Database
 
-### Phase 7 — Trees
+Implement persistent object storage and retrieval.
 
-Represent directory structures as tree objects.
+## Phase 7 — Trees
 
-### Phase 8 — Index
+Construct tree objects from repository directory structures.
 
-Implement the staging area.
+## Phase 8 — Index
 
-### Phase 9 — Status
+Implement the staging area and:
+
+```bash
+mini-git add
+```
+
+## Phase 9 — Status
 
 Implement:
 
@@ -529,88 +983,136 @@ Implement:
 mini-git status
 ```
 
-### Phase 10 — Commits
+## Phase 10 — Commits
 
-Implement commit creation.
+Connect the index, trees, and commit objects to implement:
 
-### Phase 11 — Log
+```bash
+mini-git commit
+```
 
-Implement commit history inspection.
+## Phase 11 — Log
 
-### Phase 12 — References and HEAD
+Implement commit history inspection:
 
-Implement repository references and `HEAD`.
+```bash
+mini-git log
+```
 
-### Phase 13 — Branches
+## Phase 12 — References and HEAD
+
+Implement repository references and `HEAD` management.
+
+## Phase 13 — Branches
 
 Implement branch creation and management.
 
-### Phase 14 — Checkout
+## Phase 14 — Checkout
 
 Implement switching between repository states.
 
-### Phase 15 — Diff
+## Phase 15 — Diff
 
-Compare repository states.
+Compare repository states and working-tree changes.
 
-### Phase 16 — Merge
+## Phase 16 — Merge
 
-Implement fast-forward and simplified three-way merging.
+Implement fast-forward merging and a simplified three-way merge.
 
-### Phase 17 — Conflict Handling
+## Phase 17 — Conflict Handling
 
 Detect and represent merge conflicts.
 
-### Phase 18 — Tags
+## Phase 18 — Tags
 
 Implement lightweight tags.
 
-### Phase 19 — Repository Maintenance
+## Phase 19 — Repository Maintenance
 
-Explore object reachability and garbage collection.
+Explore object reachability, unused objects, and garbage-collection concepts.
 
-### Phase 20 — Testing
+## Phase 20 — Testing
 
-Expand automated tests and edge-case coverage.
+Expand unit, integration, edge-case, and repository-level tests.
 
-### Phase 21 — Robustness
+## Phase 21 — Robustness
 
-Improve validation and error handling.
+Improve validation, error handling, and failure recovery.
 
-### Phase 22 — Performance
+## Phase 22 — Performance
 
-Benchmark important operations.
+Benchmark important repository operations and identify performance bottlenecks.
 
-### Phase 23 — Refactoring
+## Phase 23 — Refactoring
 
-Review architecture and modern C++ practices.
+Review the architecture and modern C++ practices, including:
 
-### Phase 24 — Documentation
+* RAII
+* Const correctness
+* Ownership
+* Interfaces
+* Testability
+* Separation of concerns
+* Error handling
+* Maintainability
 
-Document implementation decisions and internal mechanisms.
+## Phase 24 — Documentation
 
-### Phase 25 — Git Comparison
+Document implementation details, architectural decisions, internal formats, and important design tradeoffs.
 
-Compare Mini Git's architecture and behavior with real Git.
+## Phase 25 — Git Comparison
 
-### Phase 26 — Portfolio
+Compare Mini Git with real Git feature-by-feature to identify similarities, differences, simplifications, and limitations.
 
-Prepare:
+## Phase 26 — Portfolio
+
+Prepare the project for professional presentation:
 
 * GitHub repository
 * README
 * Architecture documentation
+* Technical documentation
 * Resume description
 * LinkedIn description
 * Interview explanation
 * Technical discussion points
+* Demonstration workflow
 
 ---
 
-## Status
+# Project Status
 
-Mini Git is currently in the early implementation stage.
+**Current phase: Phase 4 — Object Model**
 
-The repository initialization system has been implemented, and the next major subsystem is cryptographic hashing.
+Implemented:
 
-The project will continue to evolve incrementally as each internal component is designed, implemented, tested, and documented.
+```text
+Repository Initialization
+        ↓
+     SHA-256
+        ↓
+   Object Model
+    ┌───┼───┐
+    ▼   ▼   ▼
+  Blob Tree Commit
+```
+
+The next major subsystem is:
+
+```text
+Real File Content
+       ↓
+      Blob
+       ↓
+   Object ID
+       ↓
+Persistent Object Storage
+```
+
+This will begin in **Phase 5 — Blob Objects**.
+
+---
+
+# License
+
+This project is provided under the terms of the license included in the repository.

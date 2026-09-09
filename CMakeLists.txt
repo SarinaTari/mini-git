@@ -17,6 +17,9 @@ add_executable(mini-git
     src/main.cpp
     src/Repository.cpp
     src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
 )
 
 target_include_directories(mini-git
@@ -47,4 +50,21 @@ target_link_libraries(hash-tests
 add_test(
     NAME HashTests
     COMMAND hash-tests
+)
+
+add_executable(object-tests
+    tests/ObjectTests.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+)
+
+target_include_directories(object-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME ObjectTests
+    COMMAND object-tests
 )
