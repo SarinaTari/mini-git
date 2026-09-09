@@ -2,6 +2,7 @@
 #include "Blob.hpp"
 #include "FileReader.hpp"
 #include "Hash.hpp"
+#include "ObjectDatabase.hpp"
 
 #include <filesystem>
 #include <iostream>
@@ -26,6 +27,37 @@ int main(int argc, char* argv[]) {
             repository.initialize();
 
             std::cout << "Initialized empty Mini Git repository.\n";
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "mini-git: " << e.what() << '\n';
+            return 1;
+        }
+    }
+
+    if (command == "hash-object") {
+        if (argc < 3) {
+            std::cerr << "mini-git: missing file path\n";
+            return 1;
+        }
+
+        try {
+            const std::filesystem::path file_path = argv[2];
+
+            Blob blob = Blob::from_file(file_path);
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            ObjectDatabase database(
+                repository.git_directory()
+            );
+
+            const std::string object_id =
+                database.store(blob);
+
+            std::cout << object_id << '\n';
+
             return 0;
         } catch (const std::exception& e) {
             std::cerr << "mini-git: " << e.what() << '\n';

@@ -10,7 +10,7 @@ Rather than simply using Git's commands or libraries, the project progressively 
 
 ---
 
-## Goals
+# Goals
 
 The primary goals of Mini Git are to understand and implement the core concepts behind modern version control systems:
 
@@ -108,7 +108,80 @@ The current Blob representation is:
 blob <size>\0<content>
 ```
 
-At this stage, Mini Git can calculate an object identifier from real file contents, but the resulting object is not yet persisted in the repository.
+The serialized Blob is hashed with SHA-256 to produce its object identifier.
+
+Mini Git can now connect real files to persistent repository objects through:
+
+```text
+File
+ │
+ ▼
+FileReader
+ │
+ ▼
+Blob
+ │
+ ▼
+serialize()
+ │
+ ▼
+SHA-256
+ │
+ ▼
+Object ID
+ │
+ ▼
+Object Database
+ │
+ ▼
+.mini-git/objects/<object-id>
+```
+
+### Object Database
+
+* `ObjectDatabase` abstraction
+* Persistent object storage
+* Object identifiers used as storage keys
+* Binary-safe object writing
+* Binary-safe object reading
+* Object existence checking
+* Duplicate-object detection
+* Object retrieval by object ID
+* Persistent storage under `.mini-git/objects/`
+* `mini-git hash-object <file>`
+
+The object database stores serialized objects using their SHA-256 object identifiers.
+
+The current storage model is:
+
+```text
+.mini-git/
+└── objects/
+    └── <object-id>
+```
+
+For example:
+
+```text
+File
+ │
+ ▼
+Blob
+ │
+ ▼
+serialize()
+ │
+ ▼
+SHA-256
+ │
+ ▼
+Object ID
+ │
+ ▼
+.mini-git/objects/<object-id>
+```
+
+Identical serialized objects produce the same object identifier. If an object with that identifier already exists, Mini Git reuses the existing object instead of writing another copy.
 
 ### Testing
 
@@ -116,11 +189,16 @@ At this stage, Mini Git can calculate an object identifier from real file conten
 * Object serialization tests
 * FileReader tests
 * Blob integration tests
+* Object database tests
 * Known SHA-256 test vectors
 * Determinism tests
 * Different-input tests
 * Binary-data tests
 * Missing-file error tests
+* Object storage tests
+* Object retrieval tests
+* Object existence tests
+* Duplicate-object tests
 * CTest integration
 
 ---
@@ -130,9 +208,6 @@ At this stage, Mini Git can calculate an object identifier from real file conten
 The following major subsystems are planned for future phases:
 
 * Repository discovery
-* Persistent object database
-* Object storage
-* Object retrieval
 * `mini-git add`
 * Index / staging area
 * `mini-git status`
@@ -242,16 +317,13 @@ The planned high-level architecture is:
 
 Not all components are implemented yet.
 
-The current implemented Blob pipeline is:
+The current implemented Blob and Object Database pipeline is:
 
 ```text
 File
  │
  ▼
 FileReader
- │
- ▼
-File Contents
  │
  ▼
 Blob::from_file()
@@ -267,9 +339,13 @@ SHA-256
  │
  ▼
 Object ID
+ │
+ ▼
+ObjectDatabase
+ │
+ ▼
+.mini-git/objects/<object-id>
 ```
-
-Persistent storage of the resulting object will be implemented by the Object Database subsystem.
 
 The architecture will evolve as additional subsystems are introduced.
 
@@ -370,6 +446,7 @@ A tree represents directory structure.
 
 ```text
 Tree
+
 ├── main.cpp  → Blob
 ├── README.md → Blob
 └── src/      → Tree
@@ -506,12 +583,61 @@ Therefore:
 ```text
 same content
      ↓
+same serialization
+     ↓
+same SHA-256
+     ↓
 same object ID
 ```
 
-This provides the foundation for object identity and deduplication.
+Mini Git uses the object ID as the key for persistent object storage:
 
-The current implementation can calculate object identifiers, but persistent object storage has not yet been implemented.
+```text
+Object Content
+      │
+      ▼
+   SHA-256
+      │
+      ▼
+  Object ID
+      │
+      ▼
+.mini-git/objects/<object-id>
+```
+
+This provides the foundation for object identity, persistence, and deduplication.
+
+---
+
+# Object Database
+
+The Object Database is responsible for persistent storage and retrieval of serialized repository objects.
+
+Its responsibilities include:
+
+* Storing serialized objects
+* Generating object identifiers
+* Checking whether objects already exist
+* Reading objects by object identifier
+* Avoiding duplicate object storage
+
+The current implementation stores each object as a file named after its object ID:
+
+```text
+.mini-git/
+└── objects/
+    ├── <object-id-1>
+    ├── <object-id-2>
+    └── <object-id-3>
+```
+
+The Object Database is intentionally separated from the `Repository` abstraction.
+
+`Repository` manages repository-level information such as the location of `.mini-git`.
+
+`ObjectDatabase` manages the contents of `.mini-git/objects`.
+
+This separation allows object storage to be tested independently.
 
 ---
 
@@ -521,11 +647,13 @@ A Mini Git repository contains a hidden `.mini-git` directory:
 
 ```text
 project/
+
 ├── .mini-git/
 │   ├── objects/
 │   ├── refs/
 │   │   └── heads/
 │   └── HEAD
+│
 ├── source files...
 └── other project files...
 ```
@@ -548,6 +676,7 @@ This creates:
 
 ```text
 .mini-git/
+
 ├── objects/
 ├── refs/
 │   └── heads/
@@ -564,13 +693,13 @@ This means that `HEAD` symbolically refers to the `main` branch.
 
 At the current stage, `main` does not yet point to a commit because repository-level commit creation has not been implemented.
 
-The `objects/` directory is currently empty because persistent object storage has not yet been implemented.
+The `objects/` directory is initially empty. Objects are added when commands such as `hash-object` store serialized objects in the repository.
 
 ---
 
 # Manual Blob Testing
 
-The current implementation includes a temporary `hash-file` command for inspecting the file-to-Blob-to-hash pipeline:
+The current implementation includes a `hash-file` command for inspecting the file-to-Blob-to-hash pipeline:
 
 ```bash
 ./build/mini-git hash-file hello.txt
@@ -588,7 +717,45 @@ Running the command multiple times without changing the file should produce the 
 
 Changing the file contents should produce a different identifier.
 
-This command is currently intended as an educational and debugging interface. It may later evolve into or be replaced by a more Git-like `hash-object` command.
+The `hash-file` command is retained as an educational/debugging interface. It calculates the object identifier without relying on persistent object storage.
+
+---
+
+# Hash an Object
+
+Mini Git can create a Blob from a real file, calculate its object identifier, and persist the serialized object in the repository's object database:
+
+```bash
+./build/mini-git hash-object hello.txt
+```
+
+The command performs:
+
+```text
+File
+ │
+ ▼
+Blob::from_file()
+ │
+ ▼
+Blob
+ │
+ ▼
+ObjectDatabase::store()
+ │
+ ▼
+SHA-256
+ │
+ ▼
+Object ID
+ │
+ ▼
+.mini-git/objects/<object-id>
+```
+
+Running the command again without changing the file produces the same object identifier.
+
+Changing the file contents produces a different object identifier while preserving the previously stored object.
 
 ---
 
@@ -677,6 +844,7 @@ The result should be:
 
 ```text
 mini-git-test/
+
 └── .mini-git/
     ├── objects/
     ├── refs/
@@ -702,6 +870,7 @@ Current tests include:
 
 ```text
 tests/
+
 ├── HashTests.cpp
 ├── ObjectTests.cpp
 ├── FileReaderTests.cpp
@@ -721,6 +890,10 @@ The object tests verify:
 * Tree serialization
 * Commit serialization
 * Initial commits without parents
+* Object database storage
+* Object existence checking
+* Object retrieval
+* Duplicate-object detection
 
 The FileReader tests verify:
 
@@ -740,10 +913,10 @@ CTest is used to execute the complete test suite.
 Run the tests with:
 
 ```bash
-ctest --test-dir build
+ctest --test-dir build --output-on-failure
 ```
 
-The project will eventually include both unit and integration tests covering repository-level behavior.
+The project will eventually include more dedicated repository-level and integration tests as the architecture grows.
 
 ---
 
@@ -895,6 +1068,7 @@ The current source tree is:
 
 ```text
 mini-git/
+
 ├── CMakeLists.txt
 ├── README.md
 ├── LICENSE
@@ -907,7 +1081,8 @@ mini-git/
 │   ├── Blob.hpp
 │   ├── Tree.hpp
 │   ├── Commit.hpp
-│   └── FileReader.hpp
+│   ├── FileReader.hpp
+│   └── ObjectDatabase.hpp
 │
 ├── src/
 │   ├── main.cpp
@@ -916,7 +1091,8 @@ mini-git/
 │   ├── Blob.cpp
 │   ├── Tree.cpp
 │   ├── Commit.cpp
-│   └── FileReader.cpp
+│   ├── FileReader.cpp
+│   └── ObjectDatabase.cpp
 │
 ├── tests/
 │   ├── HashTests.cpp
@@ -928,7 +1104,7 @@ mini-git/
     └── architecture.md
 ```
 
-As the project grows, additional modules will be introduced when their responsibilities become necessary.
+As the project grows, additional modules and dedicated test files will be introduced when their responsibilities become necessary.
 
 ---
 
@@ -1135,17 +1311,32 @@ Object ID
 
 Implement persistent object storage and retrieval.
 
-The target workflow becomes:
+Implemented:
 
 ```text
 File
  ↓
 Blob
  ↓
+Serialization
+ ↓
+SHA-256
+ ↓
 Object ID
  ↓
-.mini-git/objects/
+Object Database
+ ↓
+.mini-git/objects/<object-id>
 ```
+
+The Object Database currently supports:
+
+* Storing objects
+* Reading objects
+* Checking object existence
+* Reusing existing objects with the same object ID
+
+The `hash-object` command provides a command-line interface for creating and storing Blob objects from files.
 
 ## Phase 7 — Trees
 
@@ -1266,7 +1457,7 @@ Prepare the project for professional presentation:
 
 # Project Status
 
-**Current phase: Phase 5 — Blob Objects**
+**Current phase: Phase 6 — Object Database**
 
 Implemented:
 
@@ -1291,23 +1482,55 @@ Blob Serialization
     │
     ▼
   Object ID
+    │
+    ▼
+Object Database
+    │
+    ▼
+Persistent Storage
+    │
+    ▼
+.mini-git/objects/
 ```
 
-Mini Git can now read real files, represent their contents as Blob objects, serialize those objects, and generate deterministic SHA-256 object identifiers.
+Mini Git can now:
+
+* Initialize a repository
+* Represent file contents as Blob objects
+* Serialize objects
+* Generate deterministic SHA-256 object identifiers
+* Read real files in binary-safe mode
+* Store serialized objects persistently
+* Retrieve stored objects
+* Check whether an object exists
+* Avoid storing duplicate objects
+* Create persistent objects through `hash-object`
+
+The current object storage model is:
+
+```text
+.mini-git/
+
+├── HEAD
+├── objects/
+│   └── <object-id>
+└── refs/
+    └── heads/
+```
 
 The next major subsystem is:
 
 ```text
-Object ID
-    ↓
 Object Database
-    ↓
-Persistent Storage
-    ↓
-.mini-git/objects/
+       ↓
+     Trees
+       ↓
+Directory Structure
+       ↓
+Index / Staging
 ```
 
-This will begin in **Phase 6 — Object Database**.
+This will begin in **Phase 7 — Trees**.
 
 ---
 

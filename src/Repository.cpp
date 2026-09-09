@@ -27,3 +27,7 @@ void Repository::initialize() {
 
     head << "ref: refs/heads/main\n";
 }
+
+const std::filesystem::path& Repository::git_directory() const {
+    return git_dir_;
+}

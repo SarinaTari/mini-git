@@ -1,10 +1,12 @@
 #include "Blob.hpp"
 #include "Commit.hpp"
 #include "Tree.hpp"
+#include "ObjectDatabase.hpp"
 
 #include <cassert>
 #include <iostream>
 #include <string>
+#include <filesystem>
 
 void test_blob() {
     Blob blob("Hello Mini Git!");
@@ -79,11 +81,51 @@ void test_initial_commit() {
     );
 }
 
+void test_object_database() {
+    const std::filesystem::path test_root =
+        std::filesystem::temp_directory_path() /
+        "mini-git-object-db-test";
+
+    std::filesystem::remove_all(test_root);
+
+    const std::filesystem::path git_dir =
+        test_root / ".mini-git";
+
+    const std::filesystem::path objects_dir =
+        git_dir / "objects";
+
+    std::filesystem::create_directories(objects_dir);
+
+    ObjectDatabase database(git_dir);
+
+    Blob blob("Hello Mini Git");
+
+    const std::string object_id =
+        database.store(blob);
+
+    assert(database.exists(object_id));
+
+    const std::string stored_data =
+        database.read(object_id);
+
+    assert(stored_data == blob.serialize());
+
+    Blob second_blob("Hello Mini Git");
+
+    const std::string second_id =
+        database.store(second_blob);
+
+    assert(second_id == object_id);
+
+    std::filesystem::remove_all(test_root);
+}
+
 int main() {
     test_blob();
     test_tree();
     test_commit();
     test_initial_commit();
+    test_object_database();
 
     std::cout << "All Object tests passed.\n";
 

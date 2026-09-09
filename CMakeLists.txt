@@ -13,6 +13,11 @@ enable_testing()
 
 find_package(OpenSSL REQUIRED)
 
+
+# ============================================================
+# Main executable
+# ============================================================
+
 add_executable(mini-git
     src/main.cpp
     src/Repository.cpp
@@ -21,6 +26,7 @@ add_executable(mini-git
     src/Tree.cpp
     src/Commit.cpp
     src/FileReader.cpp
+    src/ObjectDatabase.cpp
 )
 
 target_include_directories(mini-git
@@ -32,6 +38,11 @@ target_link_libraries(mini-git
     PRIVATE
         OpenSSL::Crypto
 )
+
+
+# ============================================================
+# Hash tests
+# ============================================================
 
 add_executable(hash-tests
     tests/HashTests.cpp
@@ -53,12 +64,19 @@ add_test(
     COMMAND hash-tests
 )
 
+
+# ============================================================
+# Object tests
+# ============================================================
+
 add_executable(object-tests
     tests/ObjectTests.cpp
+    src/Hash.cpp
     src/Blob.cpp
-    src/FileReader.cpp
     src/Tree.cpp
     src/Commit.cpp
+    src/FileReader.cpp
+    src/ObjectDatabase.cpp
 )
 
 target_include_directories(object-tests
@@ -66,10 +84,20 @@ target_include_directories(object-tests
         ${PROJECT_SOURCE_DIR}/include
 )
 
+target_link_libraries(object-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
 add_test(
     NAME ObjectTests
     COMMAND object-tests
 )
+
+
+# ============================================================
+# FileReader tests
+# ============================================================
 
 add_executable(file-reader-tests
     tests/FileReaderTests.cpp
@@ -85,6 +113,11 @@ add_test(
     NAME FileReaderTests
     COMMAND file-reader-tests
 )
+
+
+# ============================================================
+# Blob tests
+# ============================================================
 
 add_executable(blob-tests
     tests/BlobTests.cpp
