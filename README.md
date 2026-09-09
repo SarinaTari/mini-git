@@ -49,18 +49,24 @@ Mini Git is being developed incrementally in phases.
 
 ### Implemented
 
-* C++20 project structure
-* CMake build system
-* Command-line executable
-* `mini-git --version`
-* `mini-git init`
-* Repository initialization
-* `.mini-git/` metadata directory
-* `objects/` directory
-* `refs/heads/` directory
-* Initial `HEAD` reference
-* `HEAD` pointing to `main`
-* Basic repository abstraction
+### Implemented
+
+- C++20 project structure
+- CMake build system
+- Command-line executable
+- `mini-git --version`
+- `mini-git init`
+- Repository initialization
+- `.mini-git/` metadata directory
+- `objects/` directory
+- `refs/heads/` directory
+- Initial `HEAD` reference
+- `HEAD` pointing to `main`
+- Basic repository abstraction
+- SHA-256 hashing
+- OpenSSL-based cryptographic hashing
+- Automated hash tests
+- CTest integration
 
 ### Planned
 

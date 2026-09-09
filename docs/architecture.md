@@ -180,6 +180,29 @@ The repository structure created by initialization is:
 
 ---
 
+# Hashing
+
+Mini Git uses SHA-256 to generate deterministic object identifiers.
+
+The hashing layer is isolated behind the `Hash` abstraction.
+
+The current relationship is:
+
+```text
+Mini Git
+   │
+   ▼
+Hash::sha256()
+   │
+   ▼
+OpenSSL EVP
+   │
+   ▼
+SHA-256
+```
+
+---
+
 # `.mini-git`
 
 `.mini-git` is Mini Git's internal metadata directory.
