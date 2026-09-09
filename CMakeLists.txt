@@ -28,6 +28,8 @@ add_executable(mini-git
     src/FileReader.cpp
     src/ObjectDatabase.cpp
     src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Status.cpp
 )
 
 target_include_directories(mini-git
@@ -164,4 +166,53 @@ target_link_libraries(tree-builder-tests
 add_test(
     NAME TreeBuilderTests
     COMMAND tree-builder-tests
+)
+
+
+# ============================================================
+# Index tests
+# ============================================================
+
+add_executable(index-tests
+    tests/IndexTests.cpp
+    src/Index.cpp
+)
+
+target_include_directories(index-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME IndexTests
+    COMMAND index-tests
+)
+
+
+# ============================================================
+# Status tests
+# ============================================================
+
+add_executable(status-tests
+    tests/StatusTests.cpp
+    src/Status.cpp
+    src/Index.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(status-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(status-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME StatusTests
+    COMMAND status-tests
 )

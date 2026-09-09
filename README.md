@@ -4,7 +4,7 @@ A Git-inspired version control system built from scratch in C++20.
 
 Mini Git is an educational systems-programming project designed to explore how modern version control systems work internally.
 
-Rather than simply using Git's commands or libraries, the project progressively implements the fundamental mechanisms behind a version control system, including hashing, content-addressable storage, objects, trees, commits, staging, references, and history.
+Rather than simply using Git's commands or libraries, the project progressively implements the fundamental mechanisms behind a version control system, including hashing, content-addressable storage, objects, trees, commits, staging, repository state, references, and history.
 
 > **Note:** Mini Git is an educational project inspired by Git. It is not intended to replace Git and does not aim for full Git compatibility.
 
@@ -21,6 +21,8 @@ The primary goals of Mini Git are to understand and implement the core concepts 
 * Tree objects
 * Commit objects
 * Staging areas
+* Working Tree state
+* Repository state
 * References
 * `HEAD`
 * Branches
@@ -58,6 +60,7 @@ Mini Git is being developed incrementally through multiple implementation phases
 * Command-line executable
 * Git-based development workflow
 * Documentation structure
+* Automated testing through CTest
 
 ### Repository
 
@@ -70,6 +73,7 @@ Mini Git is being developed incrementally through multiple implementation phases
 * Initial `HEAD` reference
 * `HEAD` pointing to `main`
 * Basic `Repository` abstraction
+* Repository path access through `Repository`
 
 ### Hashing
 
@@ -79,6 +83,7 @@ Mini Git is being developed incrementally through multiple implementation phases
 * Deterministic hash generation
 * Hexadecimal hash representation
 * Binary-data hashing support
+* Known SHA-256 test vectors
 
 ### Object Model
 
@@ -99,7 +104,7 @@ Mini Git is being developed incrementally through multiple implementation phases
 * `Blob::from_file()`
 * File contents represented as Blob objects
 * Blob serialization with object type and content size
-* SHA-256 object identifiers for serialized blobs
+* SHA-256 object identifiers for serialized Blobs
 * File → Blob → Object ID workflow
 
 The current Blob representation is:
@@ -202,9 +207,137 @@ Root Tree
 
 `TreeBuilder` recursively constructs this object hierarchy and stores the resulting Trees and Blobs in the Object Database.
 
-Mini Git's own `.mini-git/` directory is excluded from the generated working-tree representation.
+Mini Git's own `.mini-git/` directory is excluded from generated working-tree representations.
+
+### Index / Staging Area
+
+* `Index` abstraction
+* `IndexEntry` representation
+* Repository-relative staged file paths
+* Staged file → Blob object ID mapping
+* Adding new staged entries
+* Updating an existing staged entry
+* Duplicate path prevention
+* Checking whether a path is staged
+* Accessing staged entries
+* Persistent Index storage
+* Index serialization
+* Index loading
+* `.mini-git/index`
+* `mini-git add <file>`
+
+The Index represents the staged state between the Working Tree and the future commit system.
+
+The current simplified Index representation is:
+
+```text
+path<TAB>object-id
+```
+
+For example:
+
+```text
+main.cpp    abc123...
+README.md   def456...
+src/App.cpp ghi789...
+```
+
+The staging workflow is:
+
+```text
+Working Tree
+     │
+     │ mini-git add <file>
+     ▼
+ FileReader
+     │
+     ▼
+   Blob
+     │
+     ▼
+Object Database
+     │
+     ▼
+ Object ID
+     │
+     ▼
+   Index
+     │
+     ▼
+.mini-git/index
+```
+
+The Index does not store file contents themselves. It stores references to immutable Blob objects in the Object Database.
+
+### Status
+
+Phase 9 introduces the first repository state-inspection command:
+
+```bash
+mini-git status
+```
+
+The current implementation compares the **Index** against the **Working Tree**.
+
+It can identify:
+
+* Modified tracked files
+* Deleted tracked files
+* Untracked files
+* Nested untracked files
+* Clean Working Tree state
+* Internal `.mini-git/` files that must not appear as untracked files
+
+The current status model is:
+
+```text
+              Repository
+
+                   │
+                   ▼
+
+                 Index
+                   │
+                   │ compare
+                   ▼
+              Working Tree
+
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+    Modified    Deleted    Untracked
+```
+
+For a tracked file:
+
+```text
+Index object ID
+       │
+       │ compare
+       ▼
+Current file contents
+       │
+       ▼
+Blob serialization
+       │
+       ▼
+SHA-256
+       │
+       ▼
+Current object ID
+```
+
+If the current object ID differs from the Index entry, the file is reported as modified.
+
+If the file no longer exists, it is reported as deleted.
+
+Files present in the Working Tree but absent from the Index are reported as untracked.
+
+The `.mini-git/` directory is excluded from recursive untracked-file detection.
 
 ### Testing
+
+The current test suite covers:
 
 * Hash unit tests
 * Object serialization tests
@@ -212,6 +345,8 @@ Mini Git's own `.mini-git/` directory is excluded from the generated working-tre
 * Blob integration tests
 * Object database tests
 * TreeBuilder tests
+* Index tests
+* Status tests
 * Known SHA-256 test vectors
 * Determinism tests
 * Different-input tests
@@ -226,7 +361,24 @@ Mini Git's own `.mini-git/` directory is excluded from the generated working-tre
 * Recursive Tree construction tests
 * Empty-directory tests
 * `.mini-git` exclusion tests
+* Index insertion tests
+* Index update tests
+* Multiple Index entries
+* Index persistence tests
+* Index update persistence tests
+* Clean Working Tree tests
+* Modified-file tests
+* Deleted-file tests
+* Untracked-file tests
+* Nested untracked-file tests
+* `.mini-git` status exclusion tests
 * CTest integration
+
+Run the complete test suite with:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
 
 ---
 
@@ -235,9 +387,10 @@ Mini Git's own `.mini-git/` directory is excluded from the generated working-tre
 The following major subsystems are planned for future phases:
 
 * Repository discovery
-* `mini-git add`
-* Index / staging area
-* `mini-git status`
+* `mini-git add .`
+* File deletion staging
+* HEAD-aware `mini-git status`
+* Staged-vs-HEAD status
 * Repository-level commit creation
 * `mini-git commit`
 * `mini-git log`
@@ -252,6 +405,8 @@ The following major subsystems are planned for future phases:
 * Garbage collection concepts
 * Performance benchmarking
 * Extensive repository-level integration testing
+* Advanced index formats
+* Full Git-compatible object formats
 
 ---
 
@@ -306,96 +461,94 @@ This educational layer is an important part of the project's purpose.
 
 Mini Git is being developed as a layered version-control system.
 
-The planned high-level architecture is:
+The current architecture is:
 
 ```text
-                  mini-git CLI
-                       │
-                       ▼
-                  Command Parser
-                       │
-                       ▼
-                 Command Layer
-                       │
-          ┌────────────┼────────────┐
-          ▼            ▼            ▼
-       Working       Index       Repository
-        Tree            │            │
-                        │            ▼
-                        │        Object DB
-                        │            │
-                        │      ┌─────┼─────┐
-                        │      ▼     ▼     ▼
-                        │     Blob  Tree  Commit
-                        │
-                        ▼
-                      Status
-                        │
-                        ▼
-                    References
-                        │
-                        ▼
-                       HEAD
+                         mini-git CLI
+                              │
+                              ▼
+                       Command Layer
+                              │
+             ┌────────────────┼────────────────┐
+             ▼                ▼                ▼
+        Working Tree        Index          Repository
+             │                │                │
+             ▼                │                ▼
+        FileReader            │         Object Database
+             │                │                │
+             ▼                │                ▼
+           Blob               │             Objects
+             │                │          ┌────┼────┐
+             │                │          ▼    ▼    ▼
+             └────────────────┴──────── Blob Tree Commit
 ```
 
-Not all components are implemented yet.
-
-The currently implemented filesystem-to-object pipeline is:
+The intended version-control workflow is:
 
 ```text
-                    Filesystem
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-             File                Directory
-              │                     │
-              ▼                     ▼
-         FileReader             TreeBuilder
-              │                     │
-              ▼                ┌────┴────┐
-            Blob                │         │
-              │                 ▼         ▼
-              │               Blob      Tree
-              │                           │
-              └──────────────┬────────────┘
-                             ▼
-                       ObjectDatabase
-                             │
-                             ▼
-                  .mini-git/objects/
+Working Tree
+      │
+      │ add
+      ▼
+    Index
+      │
+      │ commit
+      ▼
+    Tree
+      │
+      ▼
+   Commit
+      │
+      ▼
+  Reference
+      │
+      ▼
+    HEAD
 ```
 
-For a detailed description of the current and planned architecture, see:
+Not all components in this workflow are implemented yet.
+
+The current implementation reaches the following point:
 
 ```text
-docs/architecture.md
+Working Tree
+      │
+      │ add
+      ▼
+    Index
+      │
+      │ future commit
+      ▼
+  Tree / Commit
 ```
+
+Trees and Commits already exist as object types, but repository-level commit creation has not yet connected them to the Index.
 
 ---
 
 # Core Concepts
 
-Mini Git is built around several fundamental version-control concepts.
-
 ## Working Tree
 
-The working tree is the collection of files and directories currently present on disk.
+The Working Tree is the collection of files and directories currently present on disk.
 
 ```text
 Working Tree
 ├── main.cpp
 ├── README.md
 └── src/
-    └── app.cpp
+    └── App.cpp
 ```
 
 It represents the current state of the project files.
+
+The Working Tree is the source of file contents when files are staged or inspected by `status`.
 
 ---
 
 ## Index
 
-The index is the staging area between the working tree and the repository.
+The Index is the staging area between the Working Tree and the repository.
 
 The intended workflow is:
 
@@ -406,12 +559,98 @@ Working Tree
       ▼
     Index
       │
-      │ mini-git commit
+      │ future commit
       ▼
-   Repository
+     Tree
+      │
+      ▼
+    Commit
 ```
 
-The index is planned but has not yet been implemented.
+Mini Git's Index stores simplified entries:
+
+```text
+path → Blob object ID
+```
+
+For example:
+
+```text
+main.cpp → abc123...
+README.md → def456...
+```
+
+The Index is persisted at:
+
+```text
+.mini-git/index
+```
+
+The Index is mutable. Re-staging the same path replaces its staged object ID rather than creating a duplicate Index entry.
+
+---
+
+## Status
+
+The `status` subsystem inspects the relationship between the Index and the current Working Tree.
+
+Currently:
+
+```text
+Index
+  │
+  │ compare
+  ▼
+Working Tree
+```
+
+### Modified files
+
+A tracked file is modified when its current contents produce a different Blob object ID from the ID stored in the Index.
+
+```text
+Indexed Blob ID
+      │
+      │ !=
+      ▼
+Current Blob ID
+```
+
+### Deleted files
+
+A tracked file is deleted when it exists in the Index but no longer exists in the Working Tree.
+
+### Untracked files
+
+A file is untracked when it exists in the Working Tree but has no corresponding Index entry.
+
+The status scanner recursively searches directories so nested untracked files can also be detected.
+
+The `.mini-git/` directory is excluded from this scan because repository metadata is not part of the Working Tree.
+
+### Current limitation
+
+Full Git-like status requires three states:
+
+```text
+HEAD
+ │
+ ▼
+Index
+ │
+ ▼
+Working Tree
+```
+
+Phase 9 currently has no repository commits to use as a `HEAD` baseline.
+
+Therefore the current implementation focuses on:
+
+```text
+Index ↔ Working Tree
+```
+
+Full staged-vs-HEAD and HEAD-vs-Index-vs-Working-Tree comparisons will be introduced after commit creation and reference management are implemented.
 
 ---
 
@@ -465,7 +704,7 @@ Tree
 ├── README.md → Blob
 └── src/      → Tree
                   │
-                  └── app.cpp → Blob
+                  └── App.cpp → Blob
 ```
 
 Trees connect filenames and directory structure to object identifiers.
@@ -580,7 +819,13 @@ Root Tree
                   └── Utils.cpp → Blob ID
 ```
 
-Tree serialization is deterministic. Entries are sorted by name before serialization so that equivalent directory contents produce the same serialized Tree regardless of filesystem traversal order.
+Tree serialization is deterministic.
+
+Entries are sorted by name before serialization so that equivalent directory contents produce the same serialized Tree regardless of filesystem traversal order.
+
+Empty directories are represented by empty Tree objects in Mini Git.
+
+This is an educational simplification; real Git does not normally track empty directories as independent repository objects.
 
 ---
 
@@ -712,6 +957,78 @@ This separation allows object storage to be tested independently.
 
 ---
 
+# Index / Staging Area
+
+The Index is the bridge between the Working Tree and future commits.
+
+Its simplified representation is:
+
+```text
+IndexEntry
+├── path
+└── object_id
+```
+
+For example:
+
+```text
+main.cpp → abc123...
+README.md → def456...
+src/App.cpp → ghi789...
+```
+
+When a file is staged:
+
+```bash
+mini-git add main.cpp
+```
+
+Mini Git performs:
+
+```text
+main.cpp
+    │
+    ▼
+FileReader
+    │
+    ▼
+Blob
+    │
+    ▼
+ObjectDatabase
+    │
+    ▼
+Blob ID
+    │
+    ▼
+Index
+```
+
+The Index is stored at:
+
+```text
+.mini-git/index
+```
+
+The current educational format is:
+
+```text
+path<TAB>object-id
+```
+
+For example:
+
+```text
+main.cpp    abc123...
+README.md   def456...
+```
+
+The Index can be saved and loaded so that staged state survives program termination.
+
+The Index does not duplicate Blob contents. It references objects already stored in the Object Database.
+
+---
+
 # Repository Structure
 
 A Mini Git repository contains a hidden `.mini-git` directory:
@@ -722,7 +1039,8 @@ project/
 │   ├── objects/
 │   ├── refs/
 │   │   └── heads/
-│   └── HEAD
+│   ├── HEAD
+│   └── index
 │
 ├── source files...
 └── other project files...
@@ -730,7 +1048,9 @@ project/
 
 The `.mini-git` directory contains repository metadata and internal version-control information.
 
-Project files remain in the working tree.
+Project files remain in the Working Tree.
+
+The `index` file is created when staging information is first persisted.
 
 ---
 
@@ -762,7 +1082,11 @@ This means that `HEAD` symbolically refers to the `main` branch.
 
 At the current stage, `main` does not yet point to a commit because repository-level commit creation has not been implemented.
 
-The `objects/` directory is initially empty. Objects are added when commands such as `hash-object` store serialized objects in the repository.
+The `objects/` directory is initially empty.
+
+Objects are added when commands such as `hash-object` or `add` store serialized objects in the repository.
+
+The Index is created separately when staging information is saved.
 
 ---
 
@@ -792,7 +1116,7 @@ The `hash-file` command is retained as an educational/debugging interface. It ca
 
 # Hash an Object
 
-Mini Git can create a Blob from a real file, calculate its object identifier, and persist the serialized object in the repository's object database:
+Mini Git can create a Blob from a real file, calculate its object identifier, and persist the serialized object in the repository's Object Database:
 
 ```bash
 ./build/mini-git hash-object hello.txt
@@ -825,6 +1149,137 @@ Object ID
 Running the command again without changing the file produces the same object identifier.
 
 Changing the file contents produces a different object identifier while preserving the previously stored object.
+
+---
+
+# Stage a File
+
+Mini Git's staging command is:
+
+```bash
+./build/mini-git add hello.txt
+```
+
+The command performs:
+
+```text
+hello.txt
+    │
+    ▼
+FileReader
+    │
+    ▼
+Blob
+    │
+    ▼
+ObjectDatabase
+    │
+    ▼
+Blob ID
+    │
+    ▼
+Index
+    │
+    ▼
+.mini-git/index
+```
+
+The Index contains the path and corresponding Blob object ID.
+
+For example:
+
+```text
+hello.txt    7c8f...
+```
+
+If the same file is staged again after being modified, its existing Index entry is updated rather than duplicated.
+
+The Object Database may contain both the old and new Blob objects because objects are immutable and content-addressed.
+
+---
+
+# Check Repository Status
+
+Mini Git can currently inspect the relationship between staged files and the Working Tree:
+
+```bash
+./build/mini-git status
+```
+
+For example, after staging a file:
+
+```bash
+./build/mini-git add main.cpp
+./build/mini-git status
+```
+
+the Working Tree should initially be clean:
+
+```text
+On branch main
+
+Working tree clean.
+```
+
+If the file is modified afterward:
+
+```text
+On branch main
+
+Changes not staged for commit:
+  modified: main.cpp
+```
+
+If a tracked file is deleted:
+
+```text
+On branch main
+
+Deleted files:
+  deleted: main.cpp
+```
+
+If a new file is created without staging it:
+
+```text
+On branch main
+
+Untracked files:
+  notes.txt
+```
+
+Nested untracked files are also detected:
+
+```text
+Untracked files:
+  src/notes.txt
+```
+
+The internal `.mini-git/` directory is ignored by the untracked-file scanner.
+
+### Current Status Limitation
+
+Because commits and `HEAD` comparison have not yet been implemented, Phase 9 does not provide the complete three-state Git status model.
+
+The current implementation compares:
+
+```text
+Index ↔ Working Tree
+```
+
+The full model will eventually be:
+
+```text
+HEAD
+ │
+ ▼
+Index
+ │
+ ▼
+Working Tree
+```
+
+This will allow Mini Git to distinguish staged changes from unstaged changes once commits exist.
 
 ---
 
@@ -942,7 +1397,9 @@ tests/
 ├── ObjectTests.cpp
 ├── FileReaderTests.cpp
 ├── BlobTests.cpp
-└── TreeBuilderTests.cpp
+├── TreeBuilderTests.cpp
+├── IndexTests.cpp
+└── StatusTests.cpp
 ```
 
 The hash tests verify:
@@ -985,6 +1442,27 @@ The TreeBuilder tests verify:
 * Empty directory handling
 * Tree persistence
 * `.mini-git` exclusion
+
+The Index tests verify:
+
+* Adding entries
+* Detecting staged paths
+* Updating existing entries
+* Preventing duplicate paths
+* Multiple staged entries
+* Index persistence
+* Loading staged entries
+* Persistence of updated entries
+
+The Status tests verify:
+
+* Clean Working Tree detection
+* Modified tracked files
+* Deleted tracked files
+* Untracked files
+* Nested untracked files
+* `.mini-git` exclusion
+* Recursive directory scanning
 
 CTest is used to execute the complete test suite.
 
@@ -1032,7 +1510,7 @@ Mini Git is intentionally built incrementally.
 
 Instead of immediately implementing a large collection of commands, the project first establishes the internal mechanisms required to support those commands.
 
-The fundamental workflow is:
+The fundamental version-control workflow is:
 
 ```text
 Working Tree
@@ -1043,7 +1521,7 @@ Working Tree
       │
       │ commit
       ▼
-    Tree
+     Tree
       │
       ▼
    Commit
@@ -1091,10 +1569,12 @@ Building a simplified version from scratch provides an opportunity to understand
 * How cryptographic hashes identify data
 * How objects can be reused
 * How directory structures are represented
+* How staging works
+* How the Index references immutable objects
+* How repository status can be determined
 * How commits reference previous commits
 * How branches are represented
 * How `HEAD` works
-* How staging works
 * How commit history forms a graph
 * How version-control operations manipulate repository state
 * How a systems-oriented C++ application can be designed and tested
@@ -1160,7 +1640,9 @@ mini-git/
 │   ├── Commit.hpp
 │   ├── FileReader.hpp
 │   ├── ObjectDatabase.hpp
-│   └── TreeBuilder.hpp
+│   ├── TreeBuilder.hpp
+│   ├── Index.hpp
+│   └── Status.hpp
 │
 ├── src/
 │   ├── main.cpp
@@ -1171,14 +1653,18 @@ mini-git/
 │   ├── Commit.cpp
 │   ├── FileReader.cpp
 │   ├── ObjectDatabase.cpp
-│   └── TreeBuilder.cpp
+│   ├── TreeBuilder.cpp
+│   ├── Index.cpp
+│   └── Status.cpp
 │
 ├── tests/
 │   ├── HashTests.cpp
 │   ├── ObjectTests.cpp
 │   ├── FileReaderTests.cpp
 │   ├── BlobTests.cpp
-│   └── TreeBuilderTests.cpp
+│   ├── TreeBuilderTests.cpp
+│   ├── IndexTests.cpp
+│   └── StatusTests.cpp
 │
 └── docs/
     └── architecture.md
@@ -1235,14 +1721,16 @@ Repository
 
 Index
 
-    → manages staged files
+    → manages staged file state
 
-Reference
+Status
 
-    → manages branch references
+    → compares repository staging state with the Working Tree
 ```
 
 Components should not unnecessarily take responsibility for unrelated operations.
+
+This separation becomes increasingly important as commands such as `commit`, `branch`, and `checkout` are added.
 
 ---
 
@@ -1299,6 +1787,7 @@ Examples include:
 * Invalid reference
 * Invalid command
 * Invalid filesystem path
+* Invalid Index data
 
 The CLI should provide useful error messages instead of silently failing.
 
@@ -1316,27 +1805,49 @@ The priorities are:
 
 ```text
 Understanding
-
      +
-
 Correct Implementation
-
      +
-
 Clean Architecture
-
      +
-
 Testing
-
      +
-
 Documentation
 ```
 
 The project uses simplified internal representations where appropriate for educational purposes.
 
-For example, Mini Git currently uses a simplified object serialization format and a flat object-storage layout rather than reproducing Git's exact on-disk formats.
+For example, Mini Git currently uses:
+
+* SHA-256 rather than Git's historical default SHA-1
+* A simplified object serialization format
+* A flat object-storage layout
+* A simplified text-based Index format
+* A simplified Tree representation
+* A simplified commit representation
+* Simplified repository status semantics
+
+These differences are intentional and will be documented rather than hidden.
+
+The current Index format also has limitations around filenames containing whitespace because the first implementation uses a simple text representation.
+
+A more robust path encoding or binary Index format can be introduced later if needed.
+
+The current `add` implementation is also still limited to individual files:
+
+```bash
+mini-git add <file>
+```
+
+Directory-wide staging with:
+
+```bash
+mini-git add .
+```
+
+has not yet been implemented.
+
+The current `status` implementation compares the Index against the Working Tree. It does not yet compare either state against `HEAD` because commits and repository references have not yet been connected.
 
 ---
 
@@ -1377,8 +1888,6 @@ and their serialization interfaces.
 ## Phase 5 — Blob Objects
 
 Connect Blobs to real file contents and establish the first complete object-identity workflow.
-
-This phase introduces:
 
 ```text
 File
@@ -1440,12 +1949,39 @@ Implemented:
 * `.mini-git` exclusion
 * Persistent Tree storage
 
-## Phase 8 — Index
+## Phase 8 — Index / Staging Area
 
-Implement the staging area and:
+Implement the staging area between the Working Tree and the future commit system.
 
-```bash
-mini-git add
+Implemented:
+
+* `Index`
+* `IndexEntry`
+* Staged path → Blob object ID mapping
+* Index updates
+* Duplicate path prevention
+* Index persistence
+* Index loading
+* `.mini-git/index`
+* `mini-git add <file>`
+
+The current staging workflow is:
+
+```text
+Working Tree
+      │
+      │ mini-git add <file>
+      ▼
+    Blob
+      │
+      ▼
+Object Database
+      │
+      ▼
+   Blob ID
+      │
+      ▼
+    Index
 ```
 
 ## Phase 9 — Status
@@ -1456,12 +1992,55 @@ Implement:
 mini-git status
 ```
 
+Implemented:
+
+* Modified tracked files
+* Deleted tracked files
+* Untracked files
+* Nested untracked files
+* Recursive Working Tree scanning
+* `.mini-git` exclusion
+* Clean Working Tree detection
+* Automated Status tests
+
+Current comparison:
+
+```text
+Index ↔ Working Tree
+```
+
+The complete Git-style three-state comparison will be introduced after commits and references are implemented:
+
+```text
+HEAD
+ │
+ ▼
+Index
+ │
+ ▼
+Working Tree
+```
+
 ## Phase 10 — Commits
 
-Connect the index, Trees, and Commit objects to implement:
+Connect the Index, Trees, and Commit objects to implement:
 
 ```bash
-mini-git commit
+mini-git commit -m "message"
+```
+
+The commit pipeline will become:
+
+```text
+Index
+  ↓
+TreeBuilder
+  ↓
+Tree
+  ↓
+Commit
+  ↓
+Object Database
 ```
 
 ## Phase 11 — Log
@@ -1486,7 +2065,7 @@ Implement switching between repository states.
 
 ## Phase 15 — Diff
 
-Compare repository states and working-tree changes.
+Compare repository states and Working Tree changes.
 
 ## Phase 16 — Merge
 
@@ -1555,40 +2134,102 @@ Prepare the project for professional presentation:
 
 # Project Status
 
-**Current phase: Phase 7 — Trees**
+**Current phase: Phase 9 — Status**
 
-The following core pipeline is now implemented:
+The following core pipeline is implemented:
+
+```text
+                    Working Tree
+
+                         │
+                         │
+                         ▼
+
+                    FileReader
+
+                         │
+                         ▼
+
+                       Blob
+
+                         │
+                         ▼
+
+                      SHA-256
+
+                         │
+                         ▼
+
+                     Object ID
+
+                         │
+                         ▼
+
+                  Object Database
+
+                         │
+                         ▼
+
+                       Index
+
+                         │
+                         ▼
+
+                  .mini-git/index
+```
+
+Mini Git can now inspect the relationship between the staged state and the current Working Tree:
+
+```text
+                 Index
+                   │
+                   │ compare
+                   ▼
+             Working Tree
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+    Modified    Deleted    Untracked
+```
+
+The object hierarchy is also implemented:
+
+```text
+Filesystem
+    │
+    ├── Files
+    │     ↓
+    │   Blobs
+    │
+    └── Directories
+          ↓
+        Trees
+```
+
+The broader version-control architecture is being built toward:
 
 ```text
 Working Tree
-     │
-     ▼
- FileReader
-     │
-     ▼
-    Blob
-     │
-     ▼
- SHA-256
-     │
-     ▼
- Object ID
-     │
-     ▼
-Object Database
-     │
-     ▼
+      │
+      │ add
+      ▼
+    Index
+      │
+      │ commit
+      ▼
     Tree
-     │
-     ▼
-Recursive Directory Structure
+      │
+      ▼
+   Commit
+      │
+      ▼
+  Reference
+      │
+      ▼
+    HEAD
 ```
 
-The next major subsystem is the **Index / Staging Area**, which will connect the working tree to the object database through:
-
-```bash
-mini-git add
-```
+The next major subsystem is **Phase 10 — Commits**, which will connect the existing Index, Tree, Commit, and Object Database components into the first complete snapshot-creation workflow.
 
 ---
 
