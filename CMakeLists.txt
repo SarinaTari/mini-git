@@ -20,6 +20,7 @@ add_executable(mini-git
     src/Blob.cpp
     src/Tree.cpp
     src/Commit.cpp
+    src/FileReader.cpp
 )
 
 target_include_directories(mini-git
@@ -55,6 +56,7 @@ add_test(
 add_executable(object-tests
     tests/ObjectTests.cpp
     src/Blob.cpp
+    src/FileReader.cpp
     src/Tree.cpp
     src/Commit.cpp
 )
@@ -67,4 +69,35 @@ target_include_directories(object-tests
 add_test(
     NAME ObjectTests
     COMMAND object-tests
+)
+
+add_executable(file-reader-tests
+    tests/FileReaderTests.cpp
+    src/FileReader.cpp
+)
+
+target_include_directories(file-reader-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME FileReaderTests
+    COMMAND file-reader-tests
+)
+
+add_executable(blob-tests
+    tests/BlobTests.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+)
+
+target_include_directories(blob-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME BlobTests
+    COMMAND blob-tests
 )

@@ -4,11 +4,16 @@
 
 #include <cassert>
 #include <iostream>
+#include <string>
 
 void test_blob() {
     Blob blob("Hello Mini Git!");
 
-    assert(blob.serialize() == "Hello Mini Git!");
+    const std::string expected =
+        std::string("blob 15\0", 8)
+        + "Hello Mini Git!";
+
+    assert(blob.serialize() == expected);
 }
 
 void test_tree() {
