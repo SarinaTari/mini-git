@@ -2,6 +2,7 @@
 
 #include "Hash.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -10,12 +11,18 @@ ObjectDatabase::ObjectDatabase(
     const std::filesystem::path& git_dir
 )
     : objects_dir_(git_dir / "objects") {
+
+    std::filesystem::create_directories(objects_dir_);
 }
 
-std::string ObjectDatabase::store(const Object& object) {
-    const std::string data = object.serialize();
+std::string ObjectDatabase::store(
+    const Object& object
+) {
+    const std::string data =
+        object.serialize();
 
-    const std::string object_id = Hash::sha256(data);
+    const std::string object_id =
+        Hash::sha256(data);
 
     const std::filesystem::path object_path =
         objects_dir_ / object_id;
@@ -24,11 +31,15 @@ std::string ObjectDatabase::store(const Object& object) {
         return object_id;
     }
 
-    std::ofstream file(object_path, std::ios::binary);
+    std::ofstream file(
+        object_path,
+        std::ios::binary
+    );
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to create object: " + object_path.string()
+            "Failed to create object: " +
+            object_path.string()
         );
     }
 
@@ -39,7 +50,8 @@ std::string ObjectDatabase::store(const Object& object) {
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to write object: " + object_path.string()
+            "Failed to write object: " +
+            object_path.string()
         );
     }
 
@@ -63,15 +75,20 @@ std::string ObjectDatabase::read(
 
     if (!std::filesystem::exists(object_path)) {
         throw std::runtime_error(
-            "Object not found: " + object_id
+            "Object not found: " +
+            object_id
         );
     }
 
-    std::ifstream file(object_path, std::ios::binary);
+    std::ifstream file(
+        object_path,
+        std::ios::binary
+    );
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to open object: " + object_id
+            "Failed to open object: " +
+            object_id
         );
     }
 

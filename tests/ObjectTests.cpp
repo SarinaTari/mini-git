@@ -9,11 +9,11 @@
 #include <filesystem>
 
 void test_blob() {
-    Blob blob("Hello Mini Git!");
+    Blob blob("Hello Mini Git");
 
     const std::string expected =
-        std::string("blob 15\0", 8)
-        + "Hello Mini Git!";
+        std::string("blob 14\0", 8)
+        + "Hello Mini Git";
 
     assert(blob.serialize() == expected);
 }

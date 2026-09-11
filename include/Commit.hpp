@@ -15,6 +15,18 @@ public:
 
     std::string serialize() const override;
 
+    static Commit deserialize(
+        const std::string& data
+    );
+
+    const std::string& tree_id() const;
+
+    const std::string& parent_id() const;
+
+    const std::string& author() const;
+
+    const std::string& message() const;
+
 private:
     std::string tree_id_;
     std::string parent_id_;

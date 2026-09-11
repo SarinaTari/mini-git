@@ -220,6 +220,34 @@ add_test(
 
 
 # ============================================================
+# Log tests
+# ============================================================
+
+add_executable(log-tests
+    tests/LogTests.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Hash.cpp
+    src/Repository.cpp
+)
+
+target_include_directories(log-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(log-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME LogTests
+    COMMAND log-tests
+)
+
+
+# ============================================================
 # Commit tests
 # ============================================================
 
