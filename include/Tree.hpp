@@ -13,7 +13,15 @@ struct TreeEntry {
 
 class Tree : public Object {
 public:
-    void add_entry(TreeEntry entry);
+    void add_entry(
+        TreeEntry entry
+    );
+
+    const std::vector<TreeEntry>& entries() const;
+
+    static Tree deserialize(
+        const std::string& data
+    );
 
     std::string serialize() const override;
 

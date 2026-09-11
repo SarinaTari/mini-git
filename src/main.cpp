@@ -1,5 +1,6 @@
 #include "Blob.hpp"
 #include "Commit.hpp"
+#include "Diff.hpp"
 #include "FileReader.hpp"
 #include "Hash.hpp"
 #include "Index.hpp"
@@ -31,7 +32,11 @@ void print_usage()
         << "  mini-git log\n"
         << "  mini-git branch\n"
         << "  mini-git branch <name>\n"
-        << "  mini-git checkout <name>\n";
+        << "  mini-git checkout <branch>\n"
+        << "  mini-git diff\n"
+        << "  mini-git diff --cached\n"
+        << "  mini-git diff <commit>\n"
+        << "  mini-git diff <commit> <commit>\n";
 }
 
 Repository open_repository()
@@ -66,14 +71,18 @@ void command_branch(
             repository.branches();
 
         if (branches.empty()) {
-            std::cout << "No branches yet.\n";
+            std::cout
+                << "No branches yet.\n";
+
             return;
         }
 
         const std::string current =
             repository.current_branch();
 
-        for (const auto& branch : branches) {
+        for (const auto& branch :
+             branches) {
+
             if (branch == current) {
                 std::cout << "* ";
             }
@@ -81,14 +90,18 @@ void command_branch(
                 std::cout << "  ";
             }
 
-            std::cout << branch << '\n';
+            std::cout
+                << branch
+                << '\n';
         }
 
         return;
     }
 
     if (argc == 3) {
-        repository.create_branch(argv[2]);
+        repository.create_branch(
+            argv[2]
+        );
 
         std::cout
             << "Created branch '"
@@ -116,9 +129,85 @@ void command_checkout(
         << "'\n";
 }
 
+void command_diff(
+    Repository& repository,
+    int argc,
+    char* argv[]
+)
+{
+    Diff diff(repository);
+
+    /*
+     * mini-git diff
+     *
+     * Working Tree ↔ Index
+     */
+    if (argc == 2) {
+        std::cout
+            << diff.working_tree_vs_index();
+
+        return;
+    }
+
+    /*
+     * mini-git diff --cached
+     *
+     * Index ↔ HEAD
+     */
+    if (
+        argc == 3 &&
+        std::string(argv[2]) == "--cached"
+    ) {
+        std::cout
+            << diff.index_vs_head();
+
+        return;
+    }
+
+    /*
+     * mini-git diff <commit>
+     *
+     * Commit ↔ Working Tree
+     */
+    if (argc == 3) {
+        std::cout
+            << diff.commit_vs_working_tree(
+                argv[2]
+            );
+
+        return;
+    }
+
+    /*
+     * mini-git diff <commit> <commit>
+     *
+     * Commit ↔ Commit
+     */
+    if (argc == 4) {
+        std::cout
+            << diff.commit_vs_commit(
+                argv[2],
+                argv[3]
+            );
+
+        return;
+    }
+
+    throw std::runtime_error(
+        "Usage:\n"
+        "  mini-git diff\n"
+        "  mini-git diff --cached\n"
+        "  mini-git diff <commit>\n"
+        "  mini-git diff <commit> <commit>"
+    );
+}
+
 } // namespace
 
-int main(int argc, char* argv[])
+int main(
+    int argc,
+    char* argv[]
+)
 {
     try {
         if (argc < 2) {
@@ -126,10 +215,13 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        const std::string command = argv[1];
+        const std::string command =
+            argv[1];
 
         if (command == "--version") {
-            std::cout << "Mini Git version 0.1.0\n";
+            std::cout
+                << "Mini Git version 0.1.0\n";
+
             return 0;
         }
 
@@ -139,7 +231,8 @@ int main(int argc, char* argv[])
         }
 
         if (command == "branch") {
-            Repository repository = open_repository();
+            Repository repository =
+                open_repository();
 
             command_branch(
                 repository,
@@ -157,11 +250,25 @@ int main(int argc, char* argv[])
                 );
             }
 
-            Repository repository = open_repository();
+            Repository repository =
+                open_repository();
 
             command_checkout(
                 repository,
                 argv[2]
+            );
+
+            return 0;
+        }
+
+        if (command == "diff") {
+            Repository repository =
+                open_repository();
+
+            command_diff(
+                repository,
+                argc,
+                argv
             );
 
             return 0;
@@ -218,7 +325,9 @@ int main(int argc, char* argv[])
                 open_repository();
 
             const auto file =
-                std::filesystem::absolute(argv[2]);
+                std::filesystem::absolute(
+                    argv[2]
+                );
 
             const auto relative =
                 std::filesystem::relative(
@@ -263,7 +372,9 @@ int main(int argc, char* argv[])
             Repository repository =
                 open_repository();
 
-            if (!repository.is_detached_head()) {
+            if (
+                !repository.is_detached_head()
+            ) {
                 std::cout
                     << "On branch "
                     << repository.current_branch()
@@ -304,7 +415,9 @@ int main(int argc, char* argv[])
             Repository repository =
                 open_repository();
 
-            if (repository.is_detached_head()) {
+            if (
+                repository.is_detached_head()
+            ) {
                 throw std::runtime_error(
                     "Cannot commit on detached HEAD "
                     "in Phase 13"
@@ -317,7 +430,9 @@ int main(int argc, char* argv[])
 
             index.load();
 
-            if (index.entries().empty()) {
+            if (
+                index.entries().empty()
+            ) {
                 throw std::runtime_error(
                     "Nothing to commit"
                 );
@@ -344,7 +459,9 @@ int main(int argc, char* argv[])
                 std::getenv("USER");
 
             const std::string author =
-                user ? user : "unknown";
+                user
+                    ? user
+                    : "unknown";
 
             Commit commit(
                 tree_id,
@@ -365,7 +482,10 @@ int main(int argc, char* argv[])
                 << "["
                 << repository.current_branch()
                 << " "
-                << commit_id.substr(0, 7)
+                << commit_id.substr(
+                    0,
+                    7
+                )
                 << "] "
                 << argv[3]
                 << '\n';
@@ -425,7 +545,9 @@ int main(int argc, char* argv[])
         print_usage();
         return 1;
     }
-    catch (const std::exception& error) {
+    catch (
+        const std::exception& error
+    ) {
         std::cerr
             << "Error: "
             << error.what()

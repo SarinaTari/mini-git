@@ -28,6 +28,7 @@ add_executable(
     src/Blob.cpp
     src/Tree.cpp
     src/Commit.cpp
+    src/Diff.cpp
 
     src/FileReader.cpp
     src/ObjectDatabase.cpp
@@ -256,10 +257,6 @@ add_test(
 # Log Tests
 # ------------------------------------------------------------
 
-# ------------------------------------------------------------
-# Log Tests
-# ------------------------------------------------------------
-
 add_executable(
     log-tests
 
@@ -446,4 +443,42 @@ target_link_libraries(
 add_test(
     NAME CheckoutTests
     COMMAND checkout-tests
+)
+
+# ------------------------------------------------------------
+# Diff Tests
+# ------------------------------------------------------------
+
+add_executable(
+    diff-tests
+
+    tests/DiffTests.cpp
+
+    src/Diff.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    diff-tests
+    PRIVATE
+        include
+)
+
+target_link_libraries(
+    diff-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME DiffTests
+    COMMAND diff-tests
 )
