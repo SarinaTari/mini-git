@@ -21,6 +21,7 @@ find_package(OpenSSL REQUIRED)
 add_executable(mini-git
     src/main.cpp
     src/Repository.cpp
+    src/Reference.cpp
     src/Hash.cpp
     src/Blob.cpp
     src/Tree.cpp
@@ -220,34 +221,6 @@ add_test(
 
 
 # ============================================================
-# Log tests
-# ============================================================
-
-add_executable(log-tests
-    tests/LogTests.cpp
-    src/Commit.cpp
-    src/ObjectDatabase.cpp
-    src/Hash.cpp
-    src/Repository.cpp
-)
-
-target_include_directories(log-tests
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-)
-
-target_link_libraries(log-tests
-    PRIVATE
-        OpenSSL::Crypto
-)
-
-add_test(
-    NAME LogTests
-    COMMAND log-tests
-)
-
-
-# ============================================================
 # Commit tests
 # ============================================================
 
@@ -268,12 +241,42 @@ add_test(
 
 
 # ============================================================
+# Log tests
+# ============================================================
+
+add_executable(log-tests
+    tests/LogTests.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Hash.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+)
+
+target_include_directories(log-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(log-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME LogTests
+    COMMAND log-tests
+)
+
+
+# ============================================================
 # Repository tests
 # ============================================================
 
 add_executable(repository-tests
     tests/RepositoryTests.cpp
     src/Repository.cpp
+    src/Reference.cpp
 )
 
 target_include_directories(repository-tests
@@ -284,4 +287,24 @@ target_include_directories(repository-tests
 add_test(
     NAME RepositoryTests
     COMMAND repository-tests
+)
+
+
+# ============================================================
+# Reference tests
+# ============================================================
+
+add_executable(reference-tests
+    tests/ReferenceTests.cpp
+    src/Reference.cpp
+)
+
+target_include_directories(reference-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(
+    NAME ReferenceTests
+    COMMAND reference-tests
 )

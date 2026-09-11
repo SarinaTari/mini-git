@@ -48,26 +48,47 @@ For example, staging a file conceptually becomes:
 
 ```text
                  Working Tree
+
                       │
+
                       ▼
+
                   FileReader
+
                       │
+
                       ▼
+
                     Blob
+
                       │
+
                       ▼
+
                   Serialize
+
                       │
+
                       ▼
+
                    SHA-256
+
                       │
+
                       ▼
+
                  Object ID
+
                       │
+
                       ▼
+
                Object Database
+
                       │
+
                       ▼
+
                     Index
 ```
 
@@ -75,26 +96,47 @@ A commit then builds on that:
 
 ```text
 Working Tree
+
      │
+
      ▼
+
    Index
+
      │
+
      ▼
+
 TreeBuilder
+
      │
+
      ▼
+
    Tree
+
      │
+
      ▼
+
   Commit
+
      │
+
      ▼
+
 Object Database
+
      │
+
      ▼
+
 Branch Reference
+
      │
+
      ▼
+
     HEAD
 ```
 
@@ -102,6 +144,33 @@ And history becomes a graph of commits:
 
 ```text
 HEAD
+
+ │
+
+ ▼
+
+Commit C
+
+ │
+
+ ▼
+
+Commit B
+
+ │
+
+ ▼
+
+Commit A
+```
+
+References add another important layer:
+
+```text
+HEAD
+ │
+ ▼
+refs/heads/main
  │
  ▼
 Commit C
@@ -113,7 +182,7 @@ Commit B
 Commit A
 ```
 
-The project is therefore both a practical version-control implementation and a way to study:
+Mini Git is therefore both a practical version-control implementation and a way to study:
 
 * filesystem internals
 * data structures
@@ -130,9 +199,9 @@ The project is therefore both a practical version-control implementation and a w
 
 # Current Status
 
-## Phase 11 — Log / History
+## Phase 12 — References & HEAD
 
-Mini Git has completed the foundational object, storage, staging, status, commit, and history layers.
+Mini Git has completed the foundational object, storage, staging, status, commit, history, and reference layers.
 
 ### Implemented
 
@@ -141,8 +210,6 @@ Mini Git has completed the foundational object, storage, staging, status, commit
 * Automated testing with CTest
 * Repository initialization
 * `.mini-git` repository structure
-* `HEAD`
-* `refs/heads/main`
 * SHA-256 hashing
 * OpenSSL EVP integration
 * Generic Object interface
@@ -162,6 +229,16 @@ Mini Git has completed the foundational object, storage, staging, status, commit
 * Commit deserialization
 * Commit history traversal
 * `mini-git log`
+* Reference abstraction
+* Symbolic references
+* Direct references
+* HEAD resolution
+* Symbolic HEAD detection
+* Detached HEAD detection
+* Current branch resolution
+* HEAD commit resolution
+* Local branch listing
+* `mini-git branch`
 
 ### Current core pipeline
 
@@ -184,18 +261,37 @@ TreeBuilder
 Object Database
      │
      ▼
-Branch Reference
+Reference
      │
      ▼
     HEAD
      │
      ▼
-    Log
+   Log
+```
+
+### Reference architecture
+
+```text
+HEAD
+ │
+ ├── symbolic
+ │      │
+ │      ▼
+ │  refs/heads/main
+ │      │
+ │      ▼
+ │   Commit ID
+ │
+ └── detached
+        │
+        ▼
+     Commit ID
 ```
 
 ### Next phase
 
-**Phase 12 — References & HEAD**
+**Phase 13 — Branches**
 
 ---
 
@@ -263,24 +359,30 @@ Mini Git is organized around several cooperating subsystems.
 
 ```text
                          Mini Git CLI
+
                               │
+
                               ▼
+
                        Command Layer
+
                               │
+
           ┌───────────────────┼───────────────────┐
           │                   │                   │
           ▼                   ▼                   ▼
+
     Working Tree           Index             Repository
           │                   │                   │
-          ▼                   │                   ├── HEAD
-      FileReader              │                   ├── References
-          │                   │                   └── Branches
-          ▼                   │
-         Blob                 │
-          │                   │
-          └───────────┬───────┘
-                      ▼
-               Object Database
+          ▼                   │            ┌──────┼──────┐
+      FileReader              │            │      │      │
+          │                   │           HEAD References
+          ▼                   │                   │
+         Blob                 │                   │
+          │                   │                   │
+          └───────────┬───────┘                   │
+                      ▼                           │
+               Object Database ◄─────────────────┘
                       │
              ┌────────┼────────┐
              │        │        │
@@ -305,8 +407,8 @@ Each component has a focused responsibility.
 | `ObjectDatabase` | Persistent object storage                   |
 | `Index`          | Staging area                                |
 | `Status`         | Working Tree state analysis                 |
+| `Reference`      | Safe named reference abstraction            |
 | `Repository`     | Repository-level state                      |
-| References       | Mapping names to objects                    |
 | CLI              | User-facing commands                        |
 
 ---
@@ -319,14 +421,23 @@ Objects are identified by the hash of their serialized contents.
 
 ```text
 Object
+
   │
+
   ▼
+
 Serialize
+
   │
+
   ▼
+
 SHA-256
+
   │
+
   ▼
+
 Object ID
 ```
 
@@ -352,8 +463,11 @@ Mini Git currently uses three major object types:
 
 ```text
 Object
+
 ├── Blob
+
 ├── Tree
+
 └── Commit
 ```
 
@@ -489,9 +603,13 @@ The current simplified storage layout is:
 
 ```text
 .mini-git/
+
 └── objects/
+
     ├── <object-id>
+
     ├── <object-id>
+
     └── <object-id>
 ```
 
@@ -509,10 +627,15 @@ For example:
 
 ```text
 project/
+
 ├── README.md
+
 ├── main.cpp
+
 └── src/
+
     ├── App.cpp
+
     └── Utils.cpp
 ```
 
@@ -520,10 +643,15 @@ becomes conceptually:
 
 ```text
 Root Tree
+
 ├── README.md → Blob
+
 ├── main.cpp  → Blob
+
 └── src       → Tree
+
                  ├── App.cpp   → Blob
+
                  └── Utils.cpp → Blob
 ```
 
@@ -531,9 +659,13 @@ A Tree therefore contains references to other objects.
 
 ```text
 Tree
+
 ├── Blob
+
 ├── Blob
+
 └── Tree
+
     └── Blob
 ```
 
@@ -579,10 +711,15 @@ For a filesystem tree:
 
 ```text
 project/
+
 ├── main.cpp
+
 ├── README.md
+
 └── src/
+
     ├── App.cpp
+
     └── Utils.cpp
 ```
 
@@ -590,10 +727,15 @@ TreeBuilder recursively constructs:
 
 ```text
 Root Tree
+
 ├── main.cpp  → Blob ID
+
 ├── README.md → Blob ID
+
 └── src       → Tree ID
+
                   ├── App.cpp   → Blob ID
+
                   └── Utils.cpp → Blob ID
 ```
 
@@ -601,7 +743,7 @@ The `.mini-git` directory is excluded from generated Trees.
 
 TreeBuilder also supports constructing a Tree from staged Index entries.
 
-That distinction becomes important because commits should represent the **staged snapshot**, not simply whatever happens to be present in the Working Tree.
+That distinction is important because commits should represent the **staged snapshot**, not simply whatever happens to be present in the Working Tree.
 
 ---
 
@@ -611,13 +753,21 @@ The Index is the bridge between the Working Tree and a commit.
 
 ```text
 Working Tree
+
      │
+
      │ add
+
      ▼
+
    Index
+
      │
+
      │ commit
+
      ▼
+
   Snapshot
 ```
 
@@ -663,20 +813,35 @@ The internal process is:
 
 ```text
 main.cpp
+
    │
+
    ▼
+
 FileReader
+
    │
+
    ▼
+
 Blob
+
    │
+
    ▼
+
 ObjectDatabase
+
    │
+
    ▼
+
 Blob ID
+
    │
+
    ▼
+
 Index
 ```
 
@@ -710,6 +875,7 @@ Example:
 On branch main
 
 Changes not staged for commit:
+
   modified: main.cpp
 ```
 
@@ -719,6 +885,7 @@ Untracked:
 On branch main
 
 Untracked files:
+
   notes.txt
 ```
 
@@ -728,18 +895,33 @@ Deleted:
 On branch main
 
 Deleted files:
+
   deleted: main.cpp
+```
+
+Phase 12 also introduces detached HEAD awareness.
+
+For example:
+
+```text
+HEAD detached at 8c91abc
 ```
 
 The long-term status model will become:
 
 ```text
 HEAD
+
  │
+
  ▼
+
 Index
+
  │
+
  ▼
+
 Working Tree
 ```
 
@@ -760,9 +942,13 @@ A Commit contains:
 
 ```text
 Commit
+
 ├── tree
+
 ├── parent
+
 ├── author
+
 └── message
 ```
 
@@ -772,6 +958,7 @@ Example initial commit:
 
 ```text
 tree <tree-id>
+
 author <author>
 
 Initial commit
@@ -781,7 +968,9 @@ Later commits contain a parent:
 
 ```text
 tree <tree-id>
+
 parent <parent-id>
+
 author <author>
 
 Update project
@@ -791,13 +980,21 @@ This creates a linked history:
 
 ```text
 Commit C
+
    │
+
    │ parent
+
    ▼
+
 Commit B
+
    │
+
    │ parent
+
    ▼
+
 Commit A
 ```
 
@@ -809,23 +1006,41 @@ The conceptual commit pipeline is:
 
 ```text
 Working Tree
+
       │
+
       ▼
+
     Index
+
       │
+
       ▼
+
 TreeBuilder
+
       │
+
       ▼
+
      Tree
+
       │
+
       ▼
+
     Commit
+
       │
+
       ▼
+
 Object Database
+
       │
+
       ▼
+
 Branch Reference
 ```
 
@@ -839,7 +1054,7 @@ This is one of the key ideas behind Git's architecture.
 
 # Commit History
 
-Phase 11 introduces:
+Mini Git supports:
 
 ```bash
 mini-git log
@@ -851,17 +1066,29 @@ Conceptually:
 
 ```text
 HEAD
+
  │
+
  ▼
+
 refs/heads/main
+
  │
+
  ▼
+
 Commit C
+
  │
+
  ▼
+
 Commit B
+
  │
+
  ▼
+
 Commit A
 ```
 
@@ -869,26 +1096,47 @@ The traversal process is:
 
 ```text
 Read HEAD
+
    │
+
    ▼
-Resolve current branch
+
+Resolve HEAD
+
    │
+
    ▼
-Read branch commit ID
+
+Resolve current commit
+
    │
+
    ▼
+
 Read Commit object
+
    │
+
    ▼
+
 Deserialize Commit
+
    │
+
    ▼
+
 Display information
+
    │
+
    ▼
+
 Read parent ID
+
    │
+
    ▼
+
 Repeat
 ```
 
@@ -896,60 +1144,275 @@ Example:
 
 ```text
 commit 8c91...
+
 Author: Sarina
 
     Update project
 
 commit 3a42...
+
 Author: Sarina
 
     Initial commit
 ```
 
-If the branch has no commits:
+If the repository has no commits:
 
 ```text
 No commits yet.
 ```
 
-This is the first implementation of persistent repository history.
+---
+
+# References
+
+Phase 12 introduces a dedicated `Reference` abstraction.
+
+Instead of allowing different parts of the program to manipulate reference files directly, references are represented through a common interface.
+
+A reference conceptually maps:
+
+```text
+Reference Name
+      │
+      ▼
+ Object ID
+```
+
+For example:
+
+```text
+refs/heads/main
+        │
+        ▼
+    8c91abcd...
+```
+
+The repository therefore separates:
+
+```text
+Reference Name
+      ↓
+Reference
+      ↓
+Object ID
+      ↓
+Object
+```
+
+This creates a foundation for branches, tags, and other named repository references.
 
 ---
 
-# HEAD and References
+# Symbolic HEAD
 
-The repository currently initializes:
+A symbolic HEAD contains a reference rather than a commit ID.
 
-```text
-.mini-git/HEAD
-```
-
-with:
+The default repository HEAD is:
 
 ```text
 ref: refs/heads/main
 ```
 
-This means `HEAD` points to the current branch rather than directly storing a commit ID.
-
-The reference hierarchy is:
+The resolution process is:
 
 ```text
 HEAD
+
  │
+
  ▼
+
 refs/heads/main
+
  │
+
  ▼
+
 Commit ID
+
  │
+
  ▼
+
 Commit Object
 ```
 
-This distinction becomes fundamental when branches are introduced.
+The important distinction is:
 
-A branch is essentially a named reference to a commit.
+```text
+HEAD
+  ↓
+Reference
+  ↓
+Commit
+```
+
+rather than:
+
+```text
+HEAD
+  ↓
+Commit
+```
+
+This allows HEAD to follow a branch as the branch moves.
+
+---
+
+# Detached HEAD
+
+Phase 12 also introduces support for direct HEAD references.
+
+A detached HEAD contains a commit ID directly:
+
+```text
+8c91abcd1234...
+```
+
+The resolution process becomes:
+
+```text
+HEAD
+
+ │
+
+ ▼
+
+Commit ID
+
+ │
+
+ ▼
+
+Commit Object
+```
+
+Mini Git can therefore distinguish:
+
+```text
+Symbolic HEAD
+```
+
+from:
+
+```text
+Detached HEAD
+```
+
+The repository exposes this state through:
+
+```cpp
+Repository::is_detached_head()
+```
+
+When HEAD is symbolic:
+
+```cpp
+Repository::current_branch()
+```
+
+returns the current branch.
+
+When HEAD is detached, there is no current branch.
+
+---
+
+# HEAD Resolution
+
+The Repository now exposes several explicit state queries:
+
+```text
+head_reference()
+is_detached_head()
+current_branch()
+head_commit()
+branches()
+```
+
+Conceptually:
+
+```text
+                  HEAD
+                   │
+          ┌────────┴────────┐
+          │                 │
+      symbolic           detached
+          │                 │
+          ▼                 ▼
+ refs/heads/main       Commit ID
+          │                 │
+          └────────┬────────┘
+                   ▼
+              Commit ID
+```
+
+This makes repository state explicit rather than hidden inside command-specific file handling.
+
+---
+
+# Branch References
+
+Branches are represented by references under:
+
+```text
+.mini-git/refs/heads/
+```
+
+For example:
+
+```text
+.mini-git/
+
+└── refs/
+
+    └── heads/
+
+        └── main
+```
+
+The `main` file contains the commit ID at the tip of the branch.
+
+Conceptually:
+
+```text
+refs/heads/main
+       │
+       ▼
+   Commit C
+       │
+       ▼
+   Commit B
+       │
+       ▼
+   Commit A
+```
+
+A branch therefore does not contain a copy of the history.
+
+It is simply a named reference to a commit.
+
+---
+
+# Branch Listing
+
+Phase 12 introduces:
+
+```bash
+mini-git branch
+```
+
+The command currently lists existing local branches.
+
+Example:
+
+```text
+* main
+```
+
+The `*` indicates the current branch.
+
+Branch creation and switching are intentionally deferred to Phase 13.
 
 ---
 
@@ -959,22 +1422,39 @@ A Mini Git repository currently looks like:
 
 ```text
 project/
+
 │
+
 ├── .mini-git/
+
 │   ├── objects/
+
 │   │   ├── <object-id>
+
 │   │   └── <object-id>
+
 │   │
+
 │   ├── refs/
+
 │   │   └── heads/
+
 │   │       └── main
+
 │   │
+
 │   ├── HEAD
+
 │   └── index
+
 │
+
 ├── README.md
+
 ├── main.cpp
+
 └── src/
+
     └── App.cpp
 ```
 
@@ -990,17 +1470,29 @@ The current architecture can be summarized as:
 
 ```text
                          HEAD
+
                           │
+
                           ▼
-                    Branch Reference
+
+                     Reference
+
                           │
+
                           ▼
+
                         Commit
+
                        /      \
+
                       /        \
+
                  Tree            Parent
+
                 /   \              │
+
                /     \             ▼
+
             Blob     Tree        Commit
 ```
 
@@ -1008,21 +1500,48 @@ And the staging pipeline is:
 
 ```text
 Working Tree
+
      │
+
      ▼
+
    Blob
+
      │
+
      ▼
+
 Object Database
+
      │
+
      ▼
+
    Index
+
      │
+
      ▼
+
    Tree
+
      │
+
      ▼
+
   Commit
+
+     │
+
+     ▼
+
+Reference
+
+     │
+
+     ▼
+
+  HEAD
 ```
 
 Together:
@@ -1052,7 +1571,7 @@ Together:
               Commit
                  │
                  ▼
-          Branch Reference
+             Reference
                  │
                  ▼
                 HEAD
@@ -1075,8 +1594,9 @@ Together:
 | `mini-git status`                | ✅ Implemented | Inspect Working Tree state      |
 | `mini-git commit -m "<message>"` | ✅ Implemented | Create a commit                 |
 | `mini-git log`                   | ✅ Implemented | Display commit history          |
-| `mini-git branch`                | ⏳ Planned     | Create/list branches            |
-| `mini-git checkout`              | ⏳ Planned     | Switch branches / restore state |
+| `mini-git branch`                | ✅ Implemented | List local branches             |
+| `mini-git branch <name>`         | ⏳ Planned     | Create a branch                 |
+| `mini-git checkout <branch>`     | ⏳ Planned     | Switch branches / restore state |
 | `mini-git diff`                  | ⏳ Planned     | Compare repository states       |
 | `mini-git merge`                 | ⏳ Planned     | Merge histories                 |
 | `mini-git tag`                   | ⏳ Planned     | Create tags                     |
@@ -1166,6 +1686,15 @@ Test:
 * nested files
 * `.mini-git` exclusion
 
+## Commit Tests
+
+Test:
+
+* initial commits
+* commits with parents
+* serialization
+* deterministic representation
+
 ## Log Tests
 
 Test:
@@ -1177,7 +1706,30 @@ Test:
 * Commit round trips
 * persistent Commit objects
 * history chains
-* log traversal
+
+## Repository Tests
+
+Test:
+
+* repository initialization
+* symbolic HEAD
+* current branch resolution
+* HEAD commit resolution
+* detached HEAD
+* branch references
+* branch listing
+
+## Reference Tests
+
+Test:
+
+* reference creation
+* reference existence
+* reference reading
+* reference writing
+* symbolic references
+* invalid reference names
+* path traversal protection
 
 Run the test suite:
 
@@ -1199,8 +1751,6 @@ ctest --test-dir build --output-on-failure
 
 The project is primarily developed and tested on Apple Silicon macOS.
 
----
-
 ## Configure
 
 From the project root:
@@ -1215,8 +1765,6 @@ If OpenSSL needs to be specified explicitly on Apple Silicon:
 cmake -S . -B build \
   -DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl@3
 ```
-
----
 
 ## Build
 
@@ -1273,6 +1821,12 @@ Commit:
 /path/to/mini-git/build/mini-git commit -m "Initial commit"
 ```
 
+List branches:
+
+```bash
+/path/to/mini-git/build/mini-git branch
+```
+
 Inspect history:
 
 ```bash
@@ -1303,11 +1857,13 @@ produces a history conceptually like:
 
 ```text
 commit <new-id>
+
 Author: Sarina
 
     Update main file
 
 commit <old-id>
+
 Author: Sarina
 
     Initial commit
@@ -1325,8 +1881,6 @@ Mini Git uses OpenSSL's EVP interface rather than implementing cryptography itse
 
 This allows the project to focus on version-control architecture rather than cryptographic implementation.
 
----
-
 ## Why C++20?
 
 C++20 provides:
@@ -1342,8 +1896,6 @@ C++20 provides:
 
 The project is intended to demonstrate modern C++ rather than C-style systems programming.
 
----
-
 ## Why a Custom Object Format?
 
 Mini Git is not trying to become Git-compatible.
@@ -1357,8 +1909,6 @@ A custom educational format makes it possible to understand:
 * object relationships
 
 without simultaneously reproducing every compatibility detail of Git.
-
----
 
 ## Why a Flat Object Store?
 
@@ -1380,8 +1930,6 @@ immediately visible.
 
 Storage can be optimized later without changing the conceptual object model.
 
----
-
 ## Why Build the Index?
 
 The Index is one of the most important concepts in Git.
@@ -1390,13 +1938,48 @@ It creates a meaningful distinction between:
 
 ```text
 Working Tree
+
      ↓
+
    Index
+
      ↓
+
    Commit
 ```
 
 Without a staging layer, the project would miss one of Git's most interesting architectural ideas.
+
+## Why a Reference Abstraction?
+
+References are central to version control.
+
+Without an abstraction, repository code would need to know exactly where reference files are stored.
+
+The `Reference` class provides a clean boundary:
+
+```text
+Repository
+    │
+    ▼
+Reference
+    │
+    ▼
+Reference File
+    │
+    ▼
+Object ID
+```
+
+This becomes especially important as Mini Git introduces:
+
+* branches
+* tags
+* detached HEAD
+* multiple references
+* reference validation
+
+in later phases.
 
 ---
 
@@ -1445,6 +2028,14 @@ The current Index representation has limitations around paths containing whitesp
 Mini Git can represent empty directories as Tree objects.
 
 Real Git normally does not track empty directories.
+
+### References
+
+Mini Git now has a dedicated Reference abstraction, but its reference rules are intentionally simpler than Git's complete reference implementation.
+
+### Branches
+
+Phase 12 supports branch listing but not branch creation or switching.
 
 ### Compatibility
 
@@ -1636,7 +2227,7 @@ Implement:
 * recursive scanning
 * `.mini-git` exclusion
 
-Future improvements will make status HEAD-aware.
+Future improvements will make status fully HEAD-aware.
 
 **Status: Completed**
 
@@ -1692,7 +2283,7 @@ Command:
 mini-git log
 ```
 
-**Status: Current / Completed**
+**Status: Completed**
 
 ---
 
@@ -1702,17 +2293,25 @@ Formalize repository references.
 
 Implement:
 
-* Reference abstraction
+* `Reference` abstraction
+* safe reference paths
 * symbolic references
 * direct references
 * reference reading
 * reference writing
 * HEAD resolution
+* symbolic HEAD detection
+* detached HEAD detection
 * current branch resolution
+* HEAD commit resolution
+* local branch listing
+* `mini-git branch`
 
 The goal is to stop treating references as raw files scattered throughout the code.
 
-**Status: Next**
+Phase 12 also establishes the foundation required for branch creation and checkout.
+
+**Status: Completed**
 
 ---
 
@@ -1739,12 +2338,19 @@ Model:
 
 ```text
            Commit A
+
           /        \
+
      main           feature
+
        │               │
+
        ▼               ▼
+
    Commit B         Commit C
 ```
+
+**Status: Next**
 
 ---
 
@@ -1767,6 +2373,8 @@ Topics:
 * updating Index
 * safety checks
 
+**Status: Future**
+
 ---
 
 ## Phase 15 — Diff
@@ -1777,7 +2385,9 @@ Implement:
 
 ```bash
 mini-git diff
+
 mini-git diff <commit>
+
 mini-git diff <commit> <commit>
 ```
 
@@ -1785,11 +2395,13 @@ Potential comparisons:
 
 ```text
 Working Tree ↔ Index
+
 Index ↔ HEAD
+
 Commit ↔ Commit
 ```
 
-This phase introduces a more sophisticated understanding of repository state.
+**Status: Future**
 
 ---
 
@@ -1820,6 +2432,8 @@ Commit
 └── parent
 ```
 
+**Status: Future**
+
 ---
 
 ## Phase 17 — Conflict Handling
@@ -1839,11 +2453,17 @@ Example:
 
 ```text
 <<<<<<< HEAD
+
 current version
+
 =======
+
 incoming version
+
 >>>>>>> feature
 ```
+
+**Status: Future**
 
 ---
 
@@ -1864,7 +2484,9 @@ Topics:
 * tag lookup
 * tagged commits
 
-This builds naturally on the reference abstraction created in Phase 12.
+This builds naturally on the Reference abstraction created in Phase 12.
+
+**Status: Future**
 
 ---
 
@@ -1887,6 +2509,8 @@ Introduce the foundations for:
 ```bash
 mini-git fsck
 ```
+
+**Status: Future**
 
 ---
 
@@ -1991,45 +2615,85 @@ The final stage also includes:
 
 ```text
  0  Git Concepts
+
  │
+
  1  Project Foundation
+
  │
+
  2  Repository Initialization
+
  │
+
  3  Hashing
+
  │
+
  4  Object Model
+
  │
+
  5  Blob Objects
+
  │
+
  6  Object Database
+
  │
+
  7  Trees
+
  │
+
  8  Index / Staging
+
  │
+
  9  Status
+
  │
+
 10  Commits
+
  │
-11  Log / History              ← CURRENT
+
+11  Log / History
+
  │
-12  References & HEAD
+
+12  References & HEAD        ← COMPLETED
+
  │
-13  Branches
+
+13  Branches                 ← CURRENT
+
  │
+
 14  Checkout
+
  │
+
 15  Diff
+
  │
+
 16  Merge
+
  │
+
 17  Conflict Handling
+
  │
+
 18  Tags
+
  │
+
 19  Repository Maintenance
+
  │
+
 20  Educational Intelligence
     + Portfolio Finalization
 ```
@@ -2048,14 +2712,23 @@ Implement the fundamental mechanics:
 
 ```text
 Objects
+
 Storage
+
 Index
+
 Commits
+
 History
+
 References
+
 Branches
+
 Checkout
+
 Diff
+
 Merge
 ```
 
@@ -2065,14 +2738,23 @@ Demonstrate:
 
 ```text
 C++20
+
 CMake
+
 Filesystem APIs
+
 Binary I/O
+
 Serialization
+
 Hashing
+
 Persistence
+
 Testing
+
 Architecture
+
 Error Handling
 ```
 
@@ -2082,9 +2764,13 @@ Expose the internal system:
 
 ```text
 inspect
+
 explain
+
 graph
+
 stats
+
 fsck
 ```
 
@@ -2124,9 +2810,13 @@ Repository state should be represented explicitly through:
 
 ```text
 Working Tree
+
 Index
+
 HEAD
+
 References
+
 Objects
 ```
 
@@ -2161,12 +2851,19 @@ New features should be built on existing abstractions instead of bypassing them.
 
 ```text
 mini-git/
+
 │
+
 ├── CMakeLists.txt
+
 ├── README.md
+
 ├── LICENSE
+
 │
+
 ├── include/
+
 │   ├── Object.hpp
 │   ├── Hash.hpp
 │   ├── FileReader.hpp
@@ -2175,11 +2872,15 @@ mini-git/
 │   ├── Commit.hpp
 │   ├── ObjectDatabase.hpp
 │   ├── Repository.hpp
+│   ├── Reference.hpp
 │   ├── TreeBuilder.hpp
 │   ├── Index.hpp
 │   └── Status.hpp
+
 │
+
 ├── src/
+
 │   ├── main.cpp
 │   ├── Hash.cpp
 │   ├── FileReader.cpp
@@ -2188,11 +2889,15 @@ mini-git/
 │   ├── Commit.cpp
 │   ├── ObjectDatabase.cpp
 │   ├── Repository.cpp
+│   ├── Reference.cpp
 │   ├── TreeBuilder.cpp
 │   ├── Index.cpp
 │   └── Status.cpp
+
 │
+
 ├── tests/
+
 │   ├── HashTests.cpp
 │   ├── ObjectTests.cpp
 │   ├── FileReaderTests.cpp
@@ -2202,8 +2907,11 @@ mini-git/
 │   ├── StatusTests.cpp
 │   ├── CommitTests.cpp
 │   ├── RepositoryTests.cpp
+│   ├── ReferenceTests.cpp
 │   └── LogTests.cpp
+
 │
+
 └── docs/
 ```
 
@@ -2221,7 +2929,7 @@ It currently does not provide:
 * Git object compatibility
 * Git's binary Index format
 * Git's exact object format
-* Git's exact reference implementation
+* Git's complete reference implementation
 * distributed networking
 * remotes
 * push/pull
@@ -2304,52 +3012,99 @@ When the project is complete, the architecture should look approximately like th
 
 ```text
                          Mini Git CLI
+
                               │
+
                               ▼
+
                        Command Layer
+
                               │
+
         ┌─────────────────────┼─────────────────────┐
+
         │                     │                     │
+
         ▼                     ▼                     ▼
+
  Working Tree               Index              Repository
+
         │                     │                     │
+
         ▼                     │              ┌──────┴──────┐
+
    FileReader                 │              │             │
+
         │                     │             HEAD       References
+
         ▼                     │              │             │
+
       Blob                    │              └──────┬──────┘
+
         │                     │                     │
+
         └──────────────┬──────┘                     │
+
                        ▼                            │
+
                 Object Database ◄──────────────────┘
+
                        │
+
              ┌─────────┼─────────┐
+
              │         │         │
+
              ▼         ▼         ▼
+
            Blob      Tree      Commit
+
                                  │
+
                                  ▼
+
                               History
+
                                  │
+
                  ┌───────────────┼───────────────┐
+
                  ▼               ▼               ▼
+
                Branch          Merge            Tags
+
                                  │
+
                                  ▼
+
                               Conflicts
+
                                  │
+
                                  ▼
+
                          Integrity / FSCK
+
                                  │
+
                                  ▼
+
                        Educational Layer
+
                                  │
+
               ┌──────────────────┼──────────────────┐
+
               ▼                  ▼                  ▼
+
            Inspect            Explain             Graph
+
               │                  │                  │
+
               └──────────────────┼──────────────────┘
+
                                  ▼
+
                                Stats
 ```
 
@@ -2365,31 +3120,57 @@ The end goal is a system where a user can:
 
 ```text
 create repository
+
       ↓
+
 stage files
+
       ↓
+
 create objects
+
       ↓
+
 build Trees
+
       ↓
+
 create commits
+
       ↓
+
 traverse history
+
       ↓
+
 create branches
+
       ↓
+
 switch branches
+
       ↓
+
 compare states
+
       ↓
+
 merge histories
+
       ↓
+
 resolve conflicts
+
       ↓
+
 inspect repository
+
       ↓
+
 analyze repository
+
       ↓
+
 verify repository integrity
 ```
 
@@ -2407,11 +3188,11 @@ That is the central idea of the project.
 
 # Status
 
-**Current Phase:** 11 / 20
+**Current Phase:** 12 / 20
 
-**Current subsystem:** Log / Commit History
+**Current subsystem:** References & HEAD
 
-**Next subsystem:** References & HEAD
+**Next subsystem:** Branches
 
 **Language:** C++20
 

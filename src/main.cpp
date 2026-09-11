@@ -10,10 +10,10 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 int main(int argc, char* argv[]) {
     if (argc == 1) {
@@ -226,10 +226,17 @@ int main(int argc, char* argv[]) {
             const StatusResult result =
                 status.collect();
 
-            std::cout
-                << "On branch "
-                << repository.current_branch()
-                << "\n\n";
+            if (repository.is_detached()) {
+                std::cout
+                    << "HEAD detached at "
+                    << repository.head_commit()
+                    << "\n\n";
+            } else {
+                std::cout
+                    << "On branch "
+                    << repository.current_branch()
+                    << "\n\n";
+            }
 
             if (!result.modified.empty()) {
                 std::cout
@@ -295,7 +302,10 @@ int main(int argc, char* argv[]) {
     }
 
     if (command == "commit") {
-        if (argc < 4 || std::string(argv[2]) != "-m") {
+        if (
+            argc < 4 ||
+            std::string(argv[2]) != "-m"
+        ) {
             std::cerr
                 << "mini-git: usage: "
                 << "mini-git commit -m \"message\"\n";
@@ -320,6 +330,12 @@ int main(int argc, char* argv[]) {
                     repository.git_directory())) {
                 throw std::runtime_error(
                     "Not a Mini Git repository"
+                );
+            }
+
+            if (repository.is_detached()) {
+                throw std::runtime_error(
+                    "Cannot commit while HEAD is detached"
                 );
             }
 
@@ -456,6 +472,62 @@ int main(int argc, char* argv[]) {
 
                 commit_id =
                     commit.parent_id();
+            }
+
+            return 0;
+
+        } catch (const std::exception& e) {
+            std::cerr
+                << "mini-git: "
+                << e.what()
+                << '\n';
+
+            return 1;
+        }
+    }
+
+    if (command == "branch") {
+        try {
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            if (!std::filesystem::exists(
+                    repository.git_directory())) {
+                throw std::runtime_error(
+                    "Not a Mini Git repository"
+                );
+            }
+
+            const std::vector<std::string> branches =
+                repository.branches();
+
+            const std::string current_branch =
+                repository.current_branch();
+
+            if (branches.empty()) {
+                if (!current_branch.empty()) {
+                    std::cout
+                        << "* "
+                        << current_branch
+                        << '\n';
+                }
+
+                return 0;
+            }
+
+            for (const auto& branch : branches) {
+                if (branch == current_branch) {
+                    std::cout
+                        << "* ";
+                } else {
+                    std::cout
+                        << "  ";
+                }
+
+                std::cout
+                    << branch
+                    << '\n';
             }
 
             return 0;
