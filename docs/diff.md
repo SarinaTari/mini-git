@@ -1,791 +1,1613 @@
-# Mini Git Diff
+# Mini Git Merge
 
 ## Overview
 
-The Diff subsystem compares two repository states and reports the content differences between them.
+Phase 15 introduces the **Merge subsystem**.
 
-Phase 14 introduces four comparison modes:
+Merge combines changes from one branch into another while preserving the repository's history.
+
+The Merge subsystem builds upon the snapshot and comparison architecture introduced in Phase 14.
+
+At a high level:
 
 ```text
-Working Tree ↔ Index
-
-Index ↔ HEAD
-
-Commit ↔ Working Tree
-
-Commit ↔ Commit
+Current Branch
+      │
+      ▼
+   Current
+   Snapshot
+      │
+      │
+      ├──────────────┐
+      │              │
+      ▼              ▼
+Merge Base        Target Branch
+      │              │
+      ▼              ▼
+ Base Snapshot    Target Snapshot
+          \        /
+           \      /
+            ▼    ▼
+        Three-Way
+          Merge
+             │
+             ▼
+       Result / Conflict
 ```
 
-The Diff subsystem is read-only.
+Phase 15 supports the fundamental merge cases:
 
-Running a diff does not:
+* fast-forward merge
+* already-up-to-date merge
+* non-conflicting merge
+* conflicting merge
+* merge commits with multiple parents
 
-* create objects
-* modify the Index
-* modify HEAD
-* modify branches
-* create commits
+The Merge subsystem uses repository snapshots to reason about changes rather than directly comparing arbitrary filesystem states.
 
 ---
 
-# Why Diff?
+# Why Merge?
 
-A version control system needs to answer more than:
-
-> What files exist?
-
-It also needs to answer:
-
-> What changed?
+Branches allow development histories to diverge.
 
 For example:
 
 ```text
-Old:
+A
+│
+B
+│
+C
+│
+└── main
+```
+
+A new branch can be created:
+
+```text
+A
+│
+B
+├── C ── D ── feature
+│
+└── main
+```
+
+The branches now contain different histories.
+
+Eventually the changes from `feature` may need to be incorporated into `main`.
+
+That operation is a **merge**.
+
+Conceptually:
+
+```text
+main
+  \
+   \
+    Merge
+   /
+feature
+```
+
+The purpose of merge is therefore:
+
+> Combine the changes represented by two histories into a new repository state.
+
+---
+
+# Branch Divergence
+
+Consider:
+
+```text
+        C ── D
+       /       \
+A ── B          ?
+       \       /
+        E ── F
+```
+
+The branches share history until commit `B`.
+
+After that point they developed independently.
+
+The shared commit:
+
+```text
+B
+```
+
+is the **common ancestor** or **merge base**.
+
+The merge needs to determine:
+
+```text
+What changed from B → D?
+
+What changed from B → F?
+
+Can those changes be combined?
+```
+
+This is the foundation of three-way merging.
+
+---
+
+# Three-Way Merge
+
+Mini Git uses three repository states when reasoning about a merge:
+
+```text
+Base
+ │
+ ├── Current
+ │
+ └── Target
+```
+
+Where:
+
+```text
+Base
+```
+
+is the common ancestor,
+
+```text
+Current
+```
+
+is the commit currently checked out,
+
+and:
+
+```text
+Target
+```
+
+is the commit being merged.
+
+Each state can be normalized into a snapshot:
+
+```text
+Base Commit
+     │
+     ▼
+Base Snapshot
+
+
+Current Commit
+     │
+     ▼
+Current Snapshot
+
+
+Target Commit
+     │
+     ▼
+Target Snapshot
+```
+
+The merge then compares the changes relative to the common base.
+
+---
+
+# Why Three-Way Merge?
+
+A simple two-way comparison is insufficient.
+
+Suppose:
+
+```text
+Base:
 
 hello
 world
 ```
 
-New:
+Current branch changes it to:
 
 ```text
 hello
 Mini Git
 ```
 
-The meaningful change is:
+while the target branch changes it to:
 
 ```text
--world
-+Mini Git
+hello
+Git
 ```
 
-Diff provides this comparison.
+The merge needs to know that both branches changed the same original content differently.
+
+Without the base:
+
+```text
+Current ↔ Target
+```
+
+it is difficult to determine whether the differences are independent changes or competing modifications.
+
+With the base:
+
+```text
+          Base
+         /    \
+   Current    Target
+```
+
+the merge can reason about:
+
+```text
+Base → Current
+Base → Target
+```
 
 ---
 
-# State Model
+# Snapshot-Based Merge
 
-Mini Git has several important states:
-
-```text
-Working Tree
-      │
-      ▼
-    Index
-      │
-      ▼
-    Tree
-      │
-      ▼
-   Commit
-```
-
-Diff allows these states to be compared.
-
----
-
-# Supported Commands
-
-## Working Tree vs Index
-
-```bash
-mini-git diff
-```
-
-Meaning:
-
-```text
-Index ↔ Working Tree
-```
-
-This shows unstaged changes.
-
----
-
-## Index vs HEAD
-
-```bash
-mini-git diff --cached
-```
-
-Meaning:
-
-```text
-HEAD ↔ Index
-```
-
-This shows staged changes.
-
----
-
-## Commit vs Working Tree
-
-```bash
-mini-git diff <commit>
-```
-
-Meaning:
-
-```text
-Commit ↔ Working Tree
-```
-
-This shows how the current filesystem differs from a particular commit.
-
----
-
-## Commit vs Commit
-
-```bash
-mini-git diff <commit1> <commit2>
-```
-
-Meaning:
-
-```text
-Commit 1 ↔ Commit 2
-```
-
-This compares two immutable repository snapshots.
-
----
-
-# Snapshot Representation
-
-Different repository states are converted to the same representation:
+Phase 14 introduced the normalized snapshot representation:
 
 ```text
 path → content
+```
+
+Phase 15 reuses this abstraction.
+
+A commit can therefore be transformed into:
+
+```text
+Commit
+  │
+  ▼
+Tree
+  │
+  ▼
+Snapshot
 ```
 
 For example:
 
 ```text
-main.cpp → "#include <iostream>\nint main() {}\n"
-
-README.md → "# Mini Git\n"
+main.cpp     → content
+README.md    → content
+src/main.cpp → content
 ```
 
-This makes the comparison independent of how the state is stored.
+The merge subsystem operates on these normalized snapshots.
+
+This keeps merge logic independent from the internal Tree representation.
 
 ---
 
-# Working Tree Snapshot
+# Merge Inputs
 
-The Working Tree is read directly from the filesystem.
+A merge conceptually receives:
 
-The `.mini-git` directory is ignored because it contains repository metadata rather than user files.
+```text
+Current Commit
+Target Commit
+Merge Base
+```
+
+These are transformed into:
+
+```text
+Current Snapshot
+Target Snapshot
+Base Snapshot
+```
+
+The merge algorithm then evaluates each path.
 
 Conceptually:
 
 ```text
-project/
-├── main.cpp
-├── README.md
-├── src/
-│   └── parser.cpp
-└── .mini-git/
-```
-
-becomes:
-
-```text
-main.cpp → content
-README.md → content
-src/parser.cpp → content
-```
-
----
-
-# Index Snapshot
-
-The Index stores:
-
-```text
-path → Blob ID
-```
-
-The Diff subsystem resolves those Blob IDs through the Object Database.
-
-The process is:
-
-```text
-Index
- │
- ▼
-Blob ID
- │
- ▼
-Object Database
- │
- ▼
-Serialized Blob
- │
- ▼
-Blob
- │
- ▼
-Content
-```
-
-The final snapshot is:
-
-```text
-path → content
+Base Snapshot
+       │
+       ├──────────────┐
+       ▼              ▼
+Current Snapshot   Target Snapshot
+       │              │
+       └──────┬───────┘
+              ▼
+            Merge
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+     Result        Conflict
 ```
 
 ---
 
-# Commit Snapshot
+# Merge Cases
 
-A Commit points to a Tree.
+Phase 15 distinguishes several important merge situations.
 
-The Tree is recursively traversed:
+---
+
+# Fast-Forward Merge
+
+A fast-forward merge occurs when the current branch is an ancestor of the target branch.
+
+For example:
 
 ```text
-Commit
- │
- ▼
-Tree
- ├── Blob
- ├── Blob
- └── Tree
-      ├── Blob
-      └── Blob
+A ── B ── C
+     │
+     └── main
+
+A ── B ── C
+          │
+          └── feature
 ```
 
-Each Blob is loaded from the Object Database.
+The current branch has no unique commits.
 
-The resulting snapshot is:
+Therefore no new merge commit is necessary.
+
+The branch reference can simply move forward:
 
 ```text
-path → content
+main: B → C
+```
+
+The resulting history is:
+
+```text
+A ── B ── C
+          │
+       main/feature
+```
+
+The working tree and index are updated to match the target commit.
+
+Conceptually:
+
+```text
+Target Commit
+      │
+      ▼
+Checkout Target Tree
+      │
+      ▼
+Rebuild Index
+      │
+      ▼
+Update Current Branch
 ```
 
 ---
 
-# Comparing Snapshots
+# Already Up-to-Date
 
-Once two snapshots exist:
-
-```text
-Old Snapshot
-
-path → content
-```
-
-and:
+If the target branch is already an ancestor of the current branch:
 
 ```text
-New Snapshot
+A ── B ── C
+     │
+     └── feature
 
-path → content
+A ── B ── C
+          │
+          └── main
 ```
 
-the Diff subsystem creates the union of their paths.
+there is nothing to merge.
 
-For each path it determines whether the file is:
+The current branch already contains the target history.
+
+Therefore:
+
+```text
+No new commit
+No tree changes
+No branch movement
+```
+
+The operation reports that the repository is already up to date.
+
+---
+
+# Non-Conflicting Merge
+
+Suppose the branches diverged:
+
+```text
+        C ── D
+       /
+A ── B
+       \
+        E ── F
+```
+
+Assume:
+
+```text
+Current branch:
+changes main.cpp
+
+Target branch:
+changes README.md
+```
+
+Because the branches modified different paths, their changes can be combined.
+
+The resulting tree contains both changes:
+
+```text
+main.cpp  → current version
+README.md → target version
+```
+
+A new merge commit is created.
+
+---
+
+# Merge Commit
+
+A normal merge commit has two parents.
+
+For example:
+
+```text
+        C
+       / \
+      /   \
+     B     M
+      \   /
+       D
+```
+
+More conventionally:
+
+```text
+        C
+       / \
+      /   \
+     B     M
+      \   /
+       D
+```
+
+The important property is that:
+
+```text
+M
+├── parent 1 → Current Commit
+└── parent 2 → Target Commit
+```
+
+The merge commit records that two histories were combined.
+
+Conceptually:
+
+```text
+Current Commit
+       │
+       ├──────────┐
+       │          │
+       ▼          ▼
+     Parent 1   Merge Commit
+                  ▲
+                  │
+               Parent 2
+                  ▲
+                  │
+             Target Commit
+```
+
+The resulting commit points to the newly constructed merged Tree.
+
+---
+
+# Merge Commit Structure
+
+A merge commit contains the same basic information as a normal Commit:
+
+```text
+tree
+author
+message
+parents
+```
+
+A normal commit has:
+
+```text
+parent
+```
+
+A merge commit has:
+
+```text
+parent 1
+parent 2
+```
+
+This allows history traversal to preserve both branches.
+
+---
+
+# Conflict Detection
+
+A conflict occurs when both branches make incompatible changes to the same logical state.
+
+For example:
+
+```text
+Base:
+
+hello
+world
+```
+
+Current:
+
+```text
+hello
+Mini Git
+```
+
+Target:
+
+```text
+hello
+Git
+```
+
+Both branches modified the same original content differently.
+
+The merge cannot safely choose one automatically.
+
+Therefore:
+
+```text
+Conflict
+```
+
+is reported.
+
+---
+
+# Conflict Classification
+
+For each path, the merge compares:
+
+```text
+Base
+Current
+Target
+```
+
+Conceptually:
+
+```text
+                 Base
+                   │
+          ┌────────┴────────┐
+          ▼                 ▼
+      Current             Target
+          │                 │
+          └────────┬────────┘
+                   ▼
+                Decision
+```
+
+Possible outcomes include:
 
 ```text
 unchanged
-modified
+current-only change
+target-only change
+same change
+conflict
 added
 deleted
 ```
 
+The exact result depends on how the path differs across the three snapshots.
+
 ---
 
-# Unchanged
+# Unchanged Path
 
 If:
 
 ```text
-old exists
-new exists
-old content == new content
+Base == Current == Target
 ```
 
-there is no output.
+there is no change.
+
+The result remains:
+
+```text
+Base
+```
 
 Example:
 
 ```text
-old:
+Base:    hello
+Current: hello
+Target:  hello
+```
+
+Result:
+
+```text
+hello
+```
+
+---
+
+# Current-Only Change
+
+If:
+
+```text
+Base == Target
+```
+
+but:
+
+```text
+Current != Base
+```
+
+only the current branch changed the path.
+
+Therefore the current version can be retained.
+
+Example:
+
+```text
+Base:
+
 hello
 
-new:
+Current:
+
+Mini Git
+
+Target:
+
 hello
 ```
 
 Result:
 
 ```text
-no diff
-```
-
----
-
-# Modified
-
-If a path exists in both snapshots but its contents differ:
-
-```text
-old:
-hello
-world
-
-new:
-hello
 Mini Git
 ```
 
-the result is:
-
-```text
--world
-+Mini Git
-```
-
 ---
 
-# Added
+# Target-Only Change
 
-If a path exists only in the new snapshot:
+If:
 
 ```text
-old:
-missing
-
-new:
-hello.txt
+Base == Current
 ```
 
-all new lines are additions.
+but:
+
+```text
+Target != Base
+```
+
+only the target branch changed the path.
+
+Therefore the target version can be incorporated.
 
 Example:
 
 ```text
-+hello
-+world
+Base:
+
+hello
+
+Current:
+
+hello
+
+Target:
+
+Git
+```
+
+Result:
+
+```text
+Git
 ```
 
 ---
 
-# Deleted
+# Same Change
 
-If a path exists only in the old snapshot:
+If:
 
 ```text
-old:
-hello.txt
-
-new:
-missing
+Current == Target
 ```
 
-all old lines are removals.
+and both differ from the base:
+
+```text
+Base    = A
+Current = B
+Target  = B
+```
+
+both branches made the same effective change.
+
+There is no conflict.
+
+The merged result is:
+
+```text
+B
+```
+
+---
+
+# Conflicting Change
+
+A conflict occurs when:
+
+```text
+Base != Current
+Base != Target
+Current != Target
+```
+
+and the changes cannot be safely combined.
 
 Example:
 
 ```text
--hello
--world
+Base:
+
+hello
+
+Current:
+
+Mini Git
+
+Target:
+
+Git
+```
+
+The merge cannot determine whether the result should be:
+
+```text
+Mini Git
+```
+
+or:
+
+```text
+Git
+```
+
+Therefore:
+
+```text
+Conflict
+```
+
+is reported.
+
+---
+
+# Added Files
+
+A file can also be introduced independently by both branches.
+
+For example:
+
+```text
+Base:
+
+(no file)
+```
+
+Current:
+
+```text
+new.txt → hello
+```
+
+Target:
+
+```text
+new.txt → hello
+```
+
+If both branches added the same content, the result can safely contain:
+
+```text
+new.txt → hello
+```
+
+However, if they added different contents:
+
+```text
+Current:
+
+new.txt → hello
+
+Target:
+
+new.txt → Mini Git
+```
+
+the addition conflicts.
+
+---
+
+# Deleted Files
+
+Deletion also participates in three-way merge reasoning.
+
+For example:
+
+```text
+Base:
+
+file.txt → hello
+```
+
+If Current deletes the file:
+
+```text
+Current:
+
+file.txt → missing
+```
+
+while Target leaves it unchanged:
+
+```text
+Target:
+
+file.txt → hello
+```
+
+the deletion can be treated as a current-only change.
+
+If one branch deletes a file while the other modifies it, the situation requires conflict handling.
+
+---
+
+# Merge Result
+
+A successful non-conflicting merge produces a new snapshot:
+
+```text
+Base
+ │
+ ├── Current changes
+ │
+ └── Target changes
+          │
+          ▼
+     Merged Snapshot
+```
+
+The merged snapshot is then converted back into repository objects:
+
+```text
+Merged Snapshot
+      │
+      ▼
+TreeBuilder
+      │
+      ▼
+Merged Tree
+      │
+      ▼
+Object Database
+      │
+      ▼
+Merge Commit
+```
+
+The merge commit then becomes the new tip of the current branch.
+
+---
+
+# Merge Pipeline
+
+The complete conceptual merge pipeline is:
+
+```text
+mini-git merge <branch>
+            │
+            ▼
+      Resolve target
+            │
+            ▼
+      Find target commit
+            │
+            ▼
+      Find common ancestor
+            │
+            ▼
+     Detect fast-forward
+            │
+            ▼
+      Load snapshots
+            │
+            ▼
+       Three-way merge
+            │
+       ┌────┴────┐
+       ▼         ▼
+     Clean     Conflict
+       │         │
+       ▼         ▼
+ Build Tree   Report conflict
+       │
+       ▼
+ Create merge commit
+       │
+       ▼
+ Update branch
+       │
+       ▼
+ Update working tree
+       │
+       ▼
+ Rebuild index
 ```
 
 ---
 
-# Line-Based Comparison
+# Repository Responsibilities
 
-Phase 14 compares files line by line.
+The `Repository` subsystem coordinates the merge operation.
 
-Given:
-
-```text
-Old:
-
-A
-B
-C
-```
-
-and:
+It is responsible for operations such as:
 
 ```text
-New:
-
-A
-X
-C
+resolve branch
+resolve HEAD
+find commits
+update branch
+restore trees
+rebuild index
 ```
 
-the common lines are:
+The merge logic should not directly manipulate branch files or HEAD when merely analyzing a merge.
 
-```text
-A
-C
-```
-
-The resulting changes are:
-
-```text
--B
-+X
-```
+Instead, the Repository coordinates the state transitions.
 
 ---
 
-# Longest Common Subsequence
+# Object Database Responsibilities
 
-The implementation uses the Longest Common Subsequence concept.
+The Object Database remains responsible for persistent object storage.
 
-The LCS identifies the largest sequence of lines that appears in both versions while preserving order.
-
-For:
+Merge may need to read:
 
 ```text
-Old:
-
-A
-B
-C
-D
+Commit
+Tree
+Blob
 ```
 
-and:
+objects.
+
+After a successful merge, new objects may be written:
 
 ```text
-New:
-
-A
-X
-C
-D
+Blob objects
+Tree objects
+Merge Commit
 ```
 
-the LCS is:
-
-```text
-A
-C
-D
-```
-
-The line:
-
-```text
-B
-```
-
-was removed and:
-
-```text
-X
-```
-
-was added.
+Therefore, unlike Diff, Merge is not read-only.
 
 ---
 
-# LCS Table
+# Index Responsibilities
 
-The algorithm builds a dynamic-programming table.
+The Index represents the staging state:
+
+```text
+path → Blob ID
+```
+
+After a successful merge, the Index must correspond to the resulting merged tree.
 
 Conceptually:
 
 ```text
-LCS[i][j]
+Merged Tree
+     │
+     ▼
+Index
 ```
 
-represents the longest common subsequence for portions of the two line sequences.
-
-If two lines match:
+This keeps:
 
 ```text
-old[i] == new[j]
+HEAD
+Working Tree
+Index
 ```
 
-the table extends the subsequence.
-
-Otherwise the best neighboring value is selected.
-
-The table is then used to reconstruct the changes.
+consistent after the merge operation.
 
 ---
 
-# Unified Diff
+# Working Tree Responsibilities
 
-Mini Git formats the result in a familiar structure:
+The Working Tree represents the actual filesystem state.
 
-```text
-diff -- mini-git hello.txt
---- a/hello.txt
-+++ b/hello.txt
-@@ -1,2 +1,2 @@
- hello
--world
-+Mini Git
-```
-
-The symbols mean:
+After a successful merge:
 
 ```text
-space  unchanged
--      removed
-+      added
+Merged Tree
+     │
+     ▼
+Working Tree
 ```
 
----
+The working files should represent the merged result.
 
-# Example
+The Index is then rebuilt from that resulting tree.
 
-Suppose the committed file contains:
+The final state is conceptually:
 
 ```text
-hello
-world
-```
-
-and the Working Tree contains:
-
-```text
-hello
-Mini Git
-```
-
-Running:
-
-```bash
-mini-git diff <commit>
-```
-
-produces a diff conceptually like:
-
-```text
-diff -- mini-git hello.txt
---- a/hello.txt
-+++ b/hello.txt
-@@ -1,2 +1,2 @@
- hello
--world
-+Mini Git
+HEAD
+ │
+ ▼
+Merge Commit
+ │
+ ▼
+Merged Tree
+ │
+ ├── Working Tree
+ │
+ └── Index
 ```
 
 ---
 
-# Staged Diff Example
+# Conflict State
 
-Suppose:
+A conflicting merge must not silently create a successful merge commit.
 
-```text
-HEAD:
-
-hello
-world
-```
-
-The user changes the file:
+Instead:
 
 ```text
-hello
-Mini Git
+Merge
+ │
+ ▼
+Conflict detected
+ │
+ ▼
+No successful merge commit
 ```
 
-and stages it.
-
-Then:
-
-```bash
-mini-git diff
-```
-
-compares:
+The important invariant is:
 
 ```text
-Index ↔ Working Tree
+Current branch history remains unchanged
 ```
 
-Since they are identical:
+until the conflict is resolved through a future conflict-resolution mechanism.
 
-```text
-no output
-```
-
-But:
-
-```bash
-mini-git diff --cached
-```
-
-compares:
-
-```text
-HEAD ↔ Index
-```
-
-and shows:
-
-```text
--world
-+Mini Git
-```
-
-This demonstrates the difference between **unstaged** and **staged** changes.
+Phase 15 focuses on **detecting and reporting conflicts** rather than implementing a complete Git-compatible conflict-resolution workflow.
 
 ---
 
-# Commit-to-Commit Example
+# Merge and Diff
 
-Suppose:
+Merge builds directly upon the comparison model introduced by Diff.
 
-```text
-Commit A:
-
-hello
-world
-```
-
-and:
+Diff answers:
 
 ```text
-Commit B:
-
-hello
-Mini Git
+What changed?
 ```
 
-Then:
-
-```bash
-mini-git diff <commit-A> <commit-B>
-```
-
-produces:
+Merge needs to answer:
 
 ```text
--world
-+Mini Git
+What changed from the base on Current?
+
+What changed from the base on Target?
+
+Do those changes conflict?
 ```
 
-The commits themselves remain unchanged.
+Therefore:
+
+```text
+Diff
+ │
+ ▼
+Snapshot Comparison
+ │
+ ▼
+Change Information
+ │
+ ▼
+Merge
+```
+
+The snapshot abstraction makes this relationship possible.
 
 ---
 
-# Read-Only Design
+# Diff vs Merge
 
-Diff is an analysis operation.
+Although they are related, they have different responsibilities.
 
-It should not change:
+| Subsystem | Purpose             | Mutates Repository |
+| --------- | ------------------- | ------------------ |
+| Diff      | Analyze differences | No                 |
+| Merge     | Combine histories   | Yes                |
+
+Diff:
+
+```text
+Snapshot A
+     │
+     ▼
+Compare
+     │
+     ▼
+Output
+```
+
+Merge:
+
+```text
+Base
+ │
+ ├── Current
+ │
+ └── Target
+       │
+       ▼
+ Three-Way Merge
+       │
+       ▼
+ Result / Conflict
+```
+
+---
+
+# Merge and Object Graph
+
+Merge operates on the repository's persistent object graph:
+
+```text
+Branch
+  │
+  ▼
+Commit
+  │
+  ▼
+Tree
+  │
+  ▼
+Blob
+```
+
+Two branches may point to different commits:
+
+```text
+main
+ │
+ ▼
+Commit A
+ │
+ ▼
+Tree A
+
+
+feature
+ │
+ ▼
+Commit B
+ │
+ ▼
+Tree B
+```
+
+The merge finds their common history and produces:
+
+```text
+Merge Commit
+ ├── Parent A
+ └── Parent B
+```
+
+This creates a new point where the histories converge.
+
+---
+
+# History After Merge
+
+Before merge:
+
+```text
+        C
+       /
+A ── B
+       \
+        D
+```
+
+After a successful merge:
+
+```text
+        C
+       / \
+A ── B   M
+       \ /
+        D
+```
+
+The merge commit `M` preserves both histories.
+
+Therefore merge does not rewrite the existing commits.
+
+Instead:
+
+```text
+Existing history
+       │
+       ▼
+Preserved
+       │
+       ▼
+New merge commit
+```
+
+---
+
+# Fast-Forward vs Merge Commit
+
+The two successful merge forms can be summarized as:
+
+### Fast-Forward
+
+```text
+A ── B ── C
+     │
+     └── main
+```
+
+After:
+
+```text
+A ── B ── C
+          │
+          └── main
+```
+
+No new commit is created.
+
+### True Merge
+
+Before:
+
+```text
+        C
+       /
+A ── B
+       \
+        D
+```
+
+After:
+
+```text
+        C
+       / \
+A ── B   M
+       \ /
+        D
+```
+
+A new merge commit is created.
+
+---
+
+# Read and Write Behavior
+
+Unlike Diff, Merge is a state-changing operation.
+
+During analysis, Merge reads:
 
 ```text
 HEAD
 Branches
-Index
-Objects
 Commits
-Working Tree
+Trees
+Blobs
+Object Database
 ```
 
-The operation is conceptually:
+After a successful merge it may modify:
 
 ```text
-State A
-   │
-   ▼
-Snapshot A
+Object Database
+Branch Reference
+Working Tree
+Index
+```
 
-State B
-   │
-   ▼
-Snapshot B
+It does not modify existing commits.
 
-Snapshot A
-     │
-     ▼
-   Compare
-     │
-     ▼
-   Output
+Existing objects remain immutable.
+
+---
+
+# Immutability
+
+Mini Git's object model remains immutable.
+
+Merge does not modify:
+
+```text
+existing Blob
+existing Tree
+existing Commit
+```
+
+Instead, it creates new objects when necessary.
+
+For example:
+
+```text
+Existing Trees
+      │
+      ▼
+Merged Tree
+      │
+      ▼
+New Merge Commit
+```
+
+This preserves the content-addressable history model.
+
+---
+
+# Merge Invariants
+
+The Merge subsystem should preserve several important invariants.
+
+### Existing objects remain immutable
+
+```text
+Blob
+Tree
+Commit
+```
+
+objects already stored in the Object Database are not modified.
+
+### Successful merge produces a valid tree
+
+The resulting Tree must reference valid objects.
+
+### Merge commit has two parents
+
+For a true merge:
+
+```text
+parent 1 = current commit
+parent 2 = target commit
+```
+
+### Fast-forward does not create an unnecessary commit
+
+If the current branch is already an ancestor of the target:
+
+```text
+move reference
+```
+
+rather than creating a merge commit.
+
+### Conflict does not silently succeed
+
+A conflicting merge must not create a normal successful merge commit.
+
+### Index and Working Tree remain synchronized
+
+After a successful merge:
+
+```text
+Merged Tree
+    │
+    ├── Working Tree
+    │
+    └── Index
 ```
 
 ---
 
 # Architecture
 
+The Phase 15 architecture can be represented as:
+
 ```text
-                       Diff
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-        ▼               ▼               ▼
- Working Tree         Index           Commit
-        │               │               │
-        ▼               ▼               ▼
-    Snapshot         Snapshot        Snapshot
-        │               │               │
-        └───────────────┼───────────────┘
-                        ▼
-                 Compare Paths
-                        │
-                        ▼
-                 Compare Contents
-                        │
-                        ▼
-                       LCS
-                        │
-                        ▼
-                 Unified Output
+                         Merge
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+              ▼            ▼            ▼
+          Current        Target        Base
+           Commit        Commit       Commit
+              │            │            │
+              ▼            ▼            ▼
+         Snapshot      Snapshot      Snapshot
+              │            │            │
+              └────────────┼────────────┘
+                           ▼
+                    Three-Way Merge
+                           │
+                 ┌─────────┴─────────┐
+                 ▼                   ▼
+              Clean                Conflict
+                 │                   │
+                 ▼                   ▼
+          Merged Snapshot        Report
+                 │
+                 ▼
+             TreeBuilder
+                 │
+                 ▼
+             Merged Tree
+                 │
+                 ▼
+           Object Database
+                 │
+                 ▼
+           Merge Commit
+             /       \
+            /         \
+   Current Commit   Target Commit
+                 │
+                 ▼
+          Update Branch
+                 │
+                 ▼
+        Working Tree + Index
 ```
 
 ---
 
-# Relationship to Future Merge
+# Relationship Between Major Subsystems
 
-Diff is an important foundation for Merge.
-
-Merge will need to understand:
+The architecture now connects:
 
 ```text
-what changed on branch A?
-what changed on branch B?
-what did they both change?
+CLI
+ │
+ ▼
+Repository
+ │
+ ├── References
+ │
+ ├── HEAD
+ │
+ ├── Index
+ │
+ ├── Object Database
+ │
+ ├── TreeBuilder
+ │
+ ├── Diff
+ │
+ └── Merge
 ```
 
-Phase 14 already provides the fundamental concept of comparing snapshots.
-
-Future merge logic can therefore build upon:
+The Merge subsystem relies on:
 
 ```text
-Commit → Snapshot
+Commit
+Tree
+Blob
+ObjectDatabase
+Index
+TreeBuilder
+Repository
+Snapshot
 ```
 
-and:
+---
+
+# Phase 14 → Phase 15
+
+Phase 14 introduced:
 
 ```text
-Snapshot → Differences
+Repository State
+       │
+       ▼
+    Snapshot
+       │
+       ▼
+   Comparison
+       │
+       ▼
+      Diff
 ```
+
+Phase 15 extends this model:
+
+```text
+Repository History
+       │
+       ▼
+ Common Ancestor
+       │
+       ├───────────────┐
+       ▼               ▼
+ Current            Target
+ Snapshot           Snapshot
+       │               │
+       └───────┬───────┘
+               ▼
+        Three-Way Merge
+               │
+        ┌──────┴──────┐
+        ▼             ▼
+      Result        Conflict
+        │
+        ▼
+   Merged Snapshot
+        │
+        ▼
+      Tree
+        │
+        ▼
+   Merge Commit
+```
+
+This is the architectural progression from **comparison** to **history integration**.
 
 ---
 
 # Current Limitations
 
-Phase 14 intentionally provides a relatively simple Diff implementation.
+Phase 15 intentionally focuses on the core merge architecture.
 
 It does not yet provide:
 
-* advanced Git-compatible hunk generation
-* sophisticated context calculation
-* binary diffs
-* rename detection
-* copy detection
-* similarity indexes
-* word-level comparison
-* colorized output
-* patch application
-* interactive diff mode
+* full Git-compatible merge behavior
+* advanced merge strategies
+* rename-aware merging
+* copy detection during merge
+* recursive merge strategies
+* octopus merges
+* interactive conflict resolution
+* merge continuation
+* merge abort
+* conflict marker generation
+* sophisticated textual conflict presentation
+* automatic rename detection
+* binary merge strategies
 
-These are not required for the core educational objective of this phase.
+These features are outside the core educational objective of this phase.
 
 ---
 
@@ -793,89 +1615,171 @@ These are not required for the core educational objective of this phase.
 
 Possible future improvements include:
 
-## Better Hunks
+## Conflict Markers
 
-Instead of displaying the entire changed file, generate compact hunks around changes.
-
-## Context Lines
-
-Display several unchanged lines surrounding changes.
-
-## Binary Detection
-
-Detect binary files and provide an appropriate summary instead of treating arbitrary bytes as text.
-
-## Rename Detection
-
-Compare file similarity to detect:
+Generate familiar conflict markers such as:
 
 ```text
-old-name.txt → new-name.txt
+<<<<<<< HEAD
+current version
+=======
+target version
+>>>>>>> feature
 ```
 
-## Word-Level Diff
+## Conflict Resolution
 
-Compare changes inside lines.
+Allow users to manually resolve conflicts and continue the merge.
 
-## Patch Support
+## Merge Abort
 
-Eventually support applying generated patches.
+Restore the repository to its pre-merge state.
+
+## Merge Continue
+
+Complete a previously interrupted merge after conflicts are resolved.
+
+## Better Common-Ancestor Discovery
+
+Improve ancestry traversal and support more complex histories.
+
+## Rename-Aware Merge
+
+Detect when a file was renamed rather than deleted and recreated.
+
+## Binary Merge Handling
+
+Detect binary conflicts and provide specialized handling.
 
 ---
 
 # Design Principle
 
-The most important architectural idea introduced by Phase 14 is:
+The most important architectural idea introduced by Phase 15 is:
 
 ```text
-Repository State
+Multiple Histories
        │
        ▼
-   Normalized
-   Snapshot
+ Common Ancestor
        │
        ▼
- State Comparison
+   Snapshots
+       │
+       ▼
+Three-Way Comparison
+       │
+       ▼
+ Merge / Conflict
 ```
 
-Instead of writing separate comparison logic for every possible pair of states, Mini Git normalizes them first.
+Merge does not simply combine two final directories.
 
-This makes the architecture easier to extend.
+It reasons about:
+
+```text
+what existed before
+what Current changed
+what Target changed
+```
+
+This allows Mini Git to distinguish:
+
+```text
+independent changes
+same changes
+conflicting changes
+```
+
+and provides a principled foundation for future conflict-resolution features.
 
 ---
 
 # Summary
 
-Phase 14 adds the ability to answer:
+Phase 15 adds the ability to answer:
 
 ```text
-What changed?
+How can two divergent histories be combined?
 ```
 
 The process is:
 
 ```text
-Working Tree / Index / Commit
-             │
-             ▼
-          Snapshot
-             │
-             ▼
-      Compare snapshots
-             │
-             ▼
-           LCS
-             │
-             ▼
-       Unified Diff
+Current Branch
+       │
+       ▼
+Current Commit
+       │
+       ▼
+Current Snapshot
+       │
+       │
+       ├──────────────┐
+       │              │
+       ▼              ▼
+      Base          Target
+       │              │
+       ▼              ▼
+Base Snapshot    Target Snapshot
+       │              │
+       └──────┬───────┘
+              ▼
+       Three-Way Merge
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+     Clean         Conflict
+       │
+       ▼
+Merged Snapshot
+       │
+       ▼
+    TreeBuilder
+       │
+       ▼
+   Merged Tree
+       │
+       ▼
+  Merge Commit
+       │
+       ▼
+ Update Branch
+       │
+       ▼
+Working Tree + Index
 ```
 
-This provides the foundation for future:
+Phase 15 therefore extends Mini Git from a system that can **observe differences** into a system that can **integrate divergent histories**.
 
-* Merge
-* Conflict Detection
-* Three-Way Merge
-* Repository Inspection
-* Educational Explanations
+The architectural progression is now:
 
-Phase 14 therefore connects the repository's **persistent history model** with its **state-analysis model**.
+```text
+Phase 13
+Repository History
+       │
+       ▼
+Phase 14
+Snapshot + Diff
+       │
+       ▼
+Phase 15
+Three-Way Merge
+       │
+       ▼
+Conflict Detection
+       │
+       ▼
+History Integration
+```
+
+The key relationship is:
+
+```text
+Diff tells Mini Git what changed.
+
+Merge uses those changes to determine
+how two histories can be combined.
+```
+
+Phase 15 therefore establishes the foundation for future **conflict resolution, merge workflows, repository inspection, and deeper Git internals**.

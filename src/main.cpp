@@ -4,6 +4,7 @@
 #include "FileReader.hpp"
 #include "Hash.hpp"
 #include "Index.hpp"
+#include "Merge.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
 #include "Status.hpp"
@@ -33,6 +34,7 @@ void print_usage()
         << "  mini-git branch\n"
         << "  mini-git branch <name>\n"
         << "  mini-git checkout <branch>\n"
+        << "  mini-git merge <branch>\n"
         << "  mini-git diff\n"
         << "  mini-git diff --cached\n"
         << "  mini-git diff <commit>\n"
@@ -137,11 +139,6 @@ void command_diff(
 {
     Diff diff(repository);
 
-    /*
-     * mini-git diff
-     *
-     * Working Tree ↔ Index
-     */
     if (argc == 2) {
         std::cout
             << diff.working_tree_vs_index();
@@ -149,11 +146,6 @@ void command_diff(
         return;
     }
 
-    /*
-     * mini-git diff --cached
-     *
-     * Index ↔ HEAD
-     */
     if (
         argc == 3 &&
         std::string(argv[2]) == "--cached"
@@ -164,11 +156,6 @@ void command_diff(
         return;
     }
 
-    /*
-     * mini-git diff <commit>
-     *
-     * Commit ↔ Working Tree
-     */
     if (argc == 3) {
         std::cout
             << diff.commit_vs_working_tree(
@@ -178,11 +165,6 @@ void command_diff(
         return;
     }
 
-    /*
-     * mini-git diff <commit> <commit>
-     *
-     * Commit ↔ Commit
-     */
     if (argc == 4) {
         std::cout
             << diff.commit_vs_commit(
@@ -200,6 +182,50 @@ void command_diff(
         "  mini-git diff <commit>\n"
         "  mini-git diff <commit> <commit>"
     );
+}
+
+void command_merge(
+    Repository& repository,
+    const std::string& branch
+)
+{
+    const char* user =
+        std::getenv("USER");
+
+    const std::string author =
+        user
+            ? user
+            : "unknown";
+
+    Merge merge(repository);
+
+    const std::string current =
+        repository.head_commit();
+
+    const std::string result =
+        merge.merge(
+            branch,
+            author
+        );
+
+    if (result == current) {
+        std::cout
+            << "Already up to date.\n";
+
+        return;
+    }
+
+    std::cout
+        << "Merged '"
+        << branch
+        << "' into '"
+        << repository.current_branch()
+        << "'\n";
+
+    std::cout
+        << "Result: "
+        << result
+        << '\n';
 }
 
 } // namespace
@@ -254,6 +280,24 @@ int main(
                 open_repository();
 
             command_checkout(
+                repository,
+                argv[2]
+            );
+
+            return 0;
+        }
+
+        if (command == "merge") {
+            if (argc != 3) {
+                throw std::runtime_error(
+                    "Usage: mini-git merge <branch>"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            command_merge(
                 repository,
                 argv[2]
             );
@@ -346,7 +390,7 @@ int main(
                 database.store(blob);
 
             Index index(
-                repository.git_directory()
+                repository.git_directory() / "index"
             );
 
             index.load();
@@ -425,7 +469,7 @@ int main(
             }
 
             Index index(
-                repository.git_directory()
+                repository.git_directory() / "index"
             );
 
             index.load();
@@ -522,6 +566,16 @@ int main(
                     << "commit "
                     << current
                     << '\n';
+
+                for (
+                    const auto& parent :
+                    commit.parent_ids()
+                ) {
+                    std::cout
+                        << "Parent: "
+                        << parent
+                        << '\n';
+                }
 
                 std::cout
                     << "Author: "

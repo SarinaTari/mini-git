@@ -18,18 +18,15 @@ find_package(OpenSSL REQUIRED)
 
 add_executable(
     mini-git
-
     src/main.cpp
-
     src/Repository.cpp
     src/Reference.cpp
-
     src/Hash.cpp
     src/Blob.cpp
     src/Tree.cpp
     src/Commit.cpp
     src/Diff.cpp
-
+    src/Merge.cpp
     src/FileReader.cpp
     src/ObjectDatabase.cpp
     src/TreeBuilder.cpp
@@ -40,13 +37,13 @@ add_executable(
 target_include_directories(
     mini-git
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     mini-git
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 # ============================================================
@@ -55,13 +52,8 @@ target_link_libraries(
 
 enable_testing()
 
-# ------------------------------------------------------------
-# Hash Tests
-# ------------------------------------------------------------
-
 add_executable(
     hash-tests
-
     tests/HashTests.cpp
     src/Hash.cpp
 )
@@ -69,13 +61,13 @@ add_executable(
 target_include_directories(
     hash-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     hash-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -83,15 +75,9 @@ add_test(
     COMMAND hash-tests
 )
 
-# ------------------------------------------------------------
-# Object Tests
-# ------------------------------------------------------------
-
 add_executable(
     object-tests
-
     tests/ObjectTests.cpp
-
     src/Blob.cpp
     src/ObjectDatabase.cpp
     src/Hash.cpp
@@ -103,13 +89,13 @@ add_executable(
 target_include_directories(
     object-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     object-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -117,13 +103,8 @@ add_test(
     COMMAND object-tests
 )
 
-# ------------------------------------------------------------
-# FileReader Tests
-# ------------------------------------------------------------
-
 add_executable(
     file-reader-tests
-
     tests/FileReaderTests.cpp
     src/FileReader.cpp
 )
@@ -131,7 +112,7 @@ add_executable(
 target_include_directories(
     file-reader-tests
     PRIVATE
-        include
+    include
 )
 
 add_test(
@@ -139,15 +120,9 @@ add_test(
     COMMAND file-reader-tests
 )
 
-# ------------------------------------------------------------
-# Blob Tests
-# ------------------------------------------------------------
-
 add_executable(
     blob-tests
-
     tests/BlobTests.cpp
-
     src/Blob.cpp
     src/FileReader.cpp
 )
@@ -155,7 +130,7 @@ add_executable(
 target_include_directories(
     blob-tests
     PRIVATE
-        include
+    include
 )
 
 add_test(
@@ -163,15 +138,9 @@ add_test(
     COMMAND blob-tests
 )
 
-# ------------------------------------------------------------
-# TreeBuilder Tests
-# ------------------------------------------------------------
-
 add_executable(
     tree-builder-tests
-
     tests/TreeBuilderTests.cpp
-
     src/TreeBuilder.cpp
     src/Tree.cpp
     src/Blob.cpp
@@ -184,13 +153,13 @@ add_executable(
 target_include_directories(
     tree-builder-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     tree-builder-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -198,13 +167,8 @@ add_test(
     COMMAND tree-builder-tests
 )
 
-# ------------------------------------------------------------
-# Index Tests
-# ------------------------------------------------------------
-
 add_executable(
     index-tests
-
     tests/IndexTests.cpp
     src/Index.cpp
 )
@@ -212,7 +176,7 @@ add_executable(
 target_include_directories(
     index-tests
     PRIVATE
-        include
+    include
 )
 
 add_test(
@@ -220,15 +184,9 @@ add_test(
     COMMAND index-tests
 )
 
-# ------------------------------------------------------------
-# Status Tests
-# ------------------------------------------------------------
-
 add_executable(
     status-tests
-
     tests/StatusTests.cpp
-
     src/Status.cpp
     src/Index.cpp
     src/Blob.cpp
@@ -239,13 +197,13 @@ add_executable(
 target_include_directories(
     status-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     status-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -253,15 +211,9 @@ add_test(
     COMMAND status-tests
 )
 
-# ------------------------------------------------------------
-# Log Tests
-# ------------------------------------------------------------
-
 add_executable(
     log-tests
-
     tests/LogTests.cpp
-
     src/Commit.cpp
     src/Repository.cpp
     src/Reference.cpp
@@ -270,18 +222,19 @@ add_executable(
     src/Blob.cpp
     src/FileReader.cpp
     src/Hash.cpp
+    src/Index.cpp
 )
 
 target_include_directories(
     log-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     log-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -289,22 +242,16 @@ add_test(
     COMMAND log-tests
 )
 
-# ------------------------------------------------------------
-# Commit Tests
-# ------------------------------------------------------------
-
 add_executable(
     commit-tests
-
     tests/CommitTests.cpp
-
     src/Commit.cpp
 )
 
 target_include_directories(
     commit-tests
     PRIVATE
-        include
+    include
 )
 
 add_test(
@@ -312,22 +259,16 @@ add_test(
     COMMAND commit-tests
 )
 
-# ------------------------------------------------------------
-# Reference Tests
-# ------------------------------------------------------------
-
 add_executable(
     reference-tests
-
     tests/ReferenceTests.cpp
-
     src/Reference.cpp
 )
 
 target_include_directories(
     reference-tests
     PRIVATE
-        include
+    include
 )
 
 add_test(
@@ -335,15 +276,9 @@ add_test(
     COMMAND reference-tests
 )
 
-# ------------------------------------------------------------
-# Repository Tests
-# ------------------------------------------------------------
-
 add_executable(
     repository-tests
-
     tests/RepositoryTests.cpp
-
     src/Repository.cpp
     src/Reference.cpp
     src/ObjectDatabase.cpp
@@ -359,13 +294,13 @@ add_executable(
 target_include_directories(
     repository-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     repository-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -373,15 +308,9 @@ add_test(
     COMMAND repository-tests
 )
 
-# ------------------------------------------------------------
-# Branch Tests
-# ------------------------------------------------------------
-
 add_executable(
     branch-tests
-
     tests/BranchTests.cpp
-
     src/Repository.cpp
     src/Reference.cpp
     src/ObjectDatabase.cpp
@@ -390,18 +319,19 @@ add_executable(
     src/Blob.cpp
     src/FileReader.cpp
     src/Hash.cpp
+    src/Index.cpp
 )
 
 target_include_directories(
     branch-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     branch-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -409,15 +339,9 @@ add_test(
     COMMAND branch-tests
 )
 
-# ------------------------------------------------------------
-# Checkout Tests
-# ------------------------------------------------------------
-
 add_executable(
     checkout-tests
-
     tests/CheckoutTests.cpp
-
     src/Repository.cpp
     src/Reference.cpp
     src/ObjectDatabase.cpp
@@ -426,18 +350,19 @@ add_executable(
     src/Blob.cpp
     src/FileReader.cpp
     src/Hash.cpp
+    src/Index.cpp
 )
 
 target_include_directories(
     checkout-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     checkout-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
@@ -445,15 +370,9 @@ add_test(
     COMMAND checkout-tests
 )
 
-# ------------------------------------------------------------
-# Diff Tests
-# ------------------------------------------------------------
-
 add_executable(
     diff-tests
-
     tests/DiffTests.cpp
-
     src/Diff.cpp
     src/Repository.cpp
     src/Reference.cpp
@@ -469,16 +388,49 @@ add_executable(
 target_include_directories(
     diff-tests
     PRIVATE
-        include
+    include
 )
 
 target_link_libraries(
     diff-tests
     PRIVATE
-        OpenSSL::Crypto
+    OpenSSL::Crypto
 )
 
 add_test(
     NAME DiffTests
     COMMAND diff-tests
+)
+
+add_executable(
+    merge-tests
+    tests/MergeTests.cpp
+    src/Merge.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    merge-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    merge-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME MergeTests
+    COMMAND merge-tests
 )

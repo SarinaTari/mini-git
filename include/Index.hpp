@@ -19,6 +19,8 @@ public:
 
     const std::vector<IndexEntry>& entries() const;
 
+    void clear();
+
     void save() const;
 
     void load();

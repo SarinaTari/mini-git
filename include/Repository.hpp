@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Reference.hpp"
+#include "Index.hpp"
 
 #include <filesystem>
 #include <string>
@@ -41,6 +42,10 @@ public:
         const std::string& branch
     );
 
+    void restore_commit(
+        const std::string& commit_id
+    ) const;
+
 private:
     std::string read_head() const;
 
@@ -62,6 +67,16 @@ private:
     ) const;
 
     void remove_working_tree_files() const;
+
+    void rebuild_index_from_tree(
+        const std::string& tree_id
+    ) const;
+
+    void add_tree_to_index(
+        const std::string& tree_id,
+        const std::filesystem::path& relative_directory,
+        Index& index
+    ) const;
 
     std::filesystem::path root_;
     std::filesystem::path git_dir_;

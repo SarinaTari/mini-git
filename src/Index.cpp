@@ -33,8 +33,13 @@ bool Index::contains(
     return false;
 }
 
-const std::vector<IndexEntry>& Index::entries() const {
+const std::vector<IndexEntry>&
+Index::entries() const {
     return entries_;
+}
+
+void Index::clear() {
+    entries_.clear();
 }
 
 void Index::save() const {

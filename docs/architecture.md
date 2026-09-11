@@ -8,67 +8,131 @@ The project is designed to expose the internal mechanisms behind local version c
 
 The architecture is organized around several major subsystems:
 
-```text
+```
 CLI
  │
  ├── Repository
- │
  ├── Index
- │
  ├── Object Database
- │
  ├── References / HEAD
- │
  ├── History
- │
- └── Diff
+ ├── Diff
+ └── Merge
 ```
 
 Each subsystem has a focused responsibility.
+
+Phase 15 extends the architecture with **three-way merge and conflict detection**.
 
 ---
 
 # High-Level Architecture
 
-```text
-                         Mini Git CLI
-                              │
-                              ▼
-                       Command Layer
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
- Working Tree               Index              Repository
-        │                     │                     │
-        ▼                     │              ┌──────┴──────┐
-   FileReader                 │              │             │
-        │                     │             HEAD       References
-        ▼                     │              │             │
-      Blob                    │              └──────┬──────┘
-        │                     │                     │
-        └──────────────┬──────┘                     │
-                       ▼                            │
-                Object Database ◄──────────────────┘
-                       │
-             ┌─────────┼─────────┐
-             │         │         │
-             ▼         ▼         ▼
-           Blob      Tree      Commit
-                                 │
-                                 ▼
-                              History
+```
+                     Mini Git CLI
+                          │
+                          ▼
+                   Command Layer
+                          │
+    ┌─────────────────────┼─────────────────────┐
+    │                     │                     │
+    ▼                     ▼                     ▼
 ```
 
-Phase 14 adds:
+Working Tree               Index              Repository
+│                     │                     │
+▼                     │              ┌──────┴──────┐
+FileReader                 │              │             │
+│                     │             HEAD       References
+▼                     │              │             │
+Blob                    │              └──────┬──────┘
+│                     │                     │
+└──────────────┬──────┘                     │
+▼                            │
+Object Database ◄──────────────────┘
+│
+┌─────────┼─────────┐
+│         │         │
+▼         ▼         ▼
+Blob      Tree      Commit
+│
+▼
+History
 
-```text
-Working Tree ─────┐
-                  │
-Index ────────────┼──► Snapshot ──► Diff
-                  │
-Commit ───────────┘
 ```
+                   ┌─────────────┐
+                   │    Diff     │
+                   └──────┬──────┘
+                          │
+                          ▼
+                      Snapshots
+                          │
+                          ▼
+                     LCS Diff
+
+                   ┌─────────────┐
+                   │    Merge    │
+                   └──────┬──────┘
+                          │
+                          ▼
+                 Three-Way Analysis
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+              ▼                       ▼
+         Clean Merge             Conflict
+              │                       │
+              ▼                       ▼
+         Merge Commit          Conflict State
+```
+
+---
+
+# Phase 15 Architecture
+
+Phase 15 introduces the Merge subsystem.
+
+The core idea is:
+
+```
+Current Branch
+      │
+      ▼
+Current Commit
+      │
+      │
+      ├──────────────┐
+      │              │
+      ▼              ▼
+   Common          Target
+   Ancestor        Commit
+      │              │
+      └──────┬───────┘
+             ▼
+      Three-Way Merge
+             │
+    ┌────────┴────────┐
+    │                 │
+    ▼                 ▼
+ Clean              Conflict
+ Changes             Detection
+    │                 │
+    ▼                 ▼
+```
+
+Merge Result       Merge Failure
+
+The merge algorithm compares:
+
+```
+Base
+ │
+ ├── Current
+ │
+ └── Target
+```
+
+The Base is the common ancestor of the current and target commits.
 
 ---
 
@@ -80,30 +144,41 @@ The command layer handles CLI operations.
 
 Examples:
 
-```bash
+```
 mini-git init
+
 mini-git add file.txt
+
 mini-git commit -m "message"
+
 mini-git branch feature
+
 mini-git checkout feature
+
 mini-git diff
+
+mini-git merge feature
 ```
 
-The command layer should coordinate subsystems rather than implement their internal logic.
+The command layer coordinates subsystems rather than implementing their internal logic.
 
 For example:
 
-```text
-mini-git diff
-      │
-      ▼
-Command Layer
-      │
-      ▼
-Diff
+```
+mini-git merge feature
+        │
+        ▼
+   Command Layer
+        │
+        ▼
+      Merge
+        │
+  ┌─────┼─────┐
+  ▼     ▼     ▼
+Repo  Trees  Commits
 ```
 
-The Diff class performs the actual comparison.
+The Merge subsystem performs the actual merge analysis.
 
 ---
 
@@ -121,16 +196,19 @@ Responsibilities include:
 * current branch
 * commit resolution
 * checkout
+* working-tree restoration
+* index synchronization
 
 Conceptually:
 
-```text
+```
 Repository
  ├── root
  ├── .mini-git
  ├── HEAD
  ├── branches
- └── checkout
+ ├── checkout
+ └── current commit
 ```
 
 The Repository does not own the actual contents of every object.
@@ -143,7 +221,7 @@ That responsibility belongs to `ObjectDatabase`.
 
 Mini Git uses three primary persistent object types:
 
-```text
+```
 Blob
 Tree
 Commit
@@ -151,7 +229,7 @@ Commit
 
 They represent:
 
-```text
+```
 Blob
  └── file contents
 
@@ -162,33 +240,50 @@ Commit
  └── snapshot + history metadata
 ```
 
+The objects form a hierarchy:
+
+```
+Commit
+   │
+   ▼
+  Tree
+   │
+   ├── Blob
+   ├── Blob
+   └── Tree
+         │
+         └── Blob
+```
+
 ---
 
 # Blob
 
 A Blob represents file contents.
 
-```text
+```
 Blob
  └── content
 ```
 
 The serialized Blob is hashed.
 
-```text
+```
 Blob
- │
- ▼
+  │
+  ▼
 Serialize
- │
- ▼
+  │
+  ▼
 SHA-256
- │
- ▼
+  │
+  ▼
 Object ID
 ```
 
 The object ID identifies the content.
+
+Blob objects are immutable after storage.
 
 ---
 
@@ -198,7 +293,7 @@ A Tree represents a directory.
 
 A Tree contains entries:
 
-```text
+```
 Tree
  ├── Blob
  ├── Blob
@@ -207,7 +302,7 @@ Tree
 
 Example:
 
-```text
+```
 Tree
 ├── main.cpp → Blob
 ├── README.md → Blob
@@ -218,6 +313,8 @@ Tree
 
 Tree serialization is deterministic.
 
+Trees therefore provide deterministic directory snapshots.
+
 ---
 
 # Commit
@@ -226,17 +323,17 @@ A Commit represents a repository snapshot plus history metadata.
 
 Conceptually:
 
-```text
+```
 Commit
  ├── tree
- ├── parent
+ ├── parent(s)
  ├── author
  └── message
 ```
 
-A commit can therefore point to a parent:
+A normal commit contains one parent:
 
-```text
+```
 Commit C
    │
    ▼
@@ -246,7 +343,19 @@ Commit B
 Commit A
 ```
 
-This forms the commit history graph.
+A merge commit contains multiple parents:
+
+```
+Commit B ──────┐
+               │
+               ▼
+            Merge Commit
+               ▲
+               │
+Commit C ──────┘
+```
+
+This allows the commit graph to represent merged histories.
 
 ---
 
@@ -260,10 +369,11 @@ Its responsibilities are:
 * reading objects
 * determining object paths
 * retrieving serialized contents
+* providing persistent object lookup
 
 The relationship is:
 
-```text
+```
 Object
    │
    ▼
@@ -289,7 +399,7 @@ The object ID is derived from object content.
 
 Therefore:
 
-```text
+```
 same object content
        ↓
 same serialization
@@ -299,7 +409,9 @@ same SHA-256
 same object ID
 ```
 
-This means object identity is content-based.
+Object identity is therefore content-based.
+
+This property allows the same object to be reused by multiple commits.
 
 ---
 
@@ -309,31 +421,72 @@ The Index represents staged state.
 
 Conceptually:
 
-```text
+```
 path → Blob ID
 ```
 
 Example:
 
-```text
-main.cpp → abc123...
+```
+main.cpp  → abc123...
 README.md → 98de...
 ```
 
 The Index sits between the Working Tree and committed history.
 
-```text
+```
 Working Tree
       │
       ▼
     Index
       │
       ▼
-TreeBuilder
+  TreeBuilder
       │
       ▼
-    Tree
+     Tree
 ```
+
+The Index is also important during checkout and merge because it represents the currently staged snapshot.
+
+---
+
+# Index Synchronization
+
+After checkout, the Working Tree and Index must represent the same target snapshot.
+
+Conceptually:
+
+```
+Target Commit
+      │
+      ▼
+     Tree
+      │
+   ┌──┴──┐
+   ▼     ▼
+Working Index
+  Tree
+```
+
+This prevents stale staged state from being interpreted as user changes.
+
+For example:
+
+```
+Branch A
+   │
+   ▼
+Commit A
+   │
+   ▼
+checkout
+   │
+   ├── Working Tree = A
+   └── Index = A
+```
+
+The Index therefore remains synchronized with the checked-out commit.
 
 ---
 
@@ -343,7 +496,7 @@ TreeBuilder
 
 Conceptually:
 
-```text
+```
 Index
  │
  ├── src/main.cpp
@@ -361,7 +514,9 @@ Root Tree
      └── parser.cpp
 ```
 
-Nested directories therefore become nested Tree objects.
+Nested directories become nested Tree objects.
+
+TreeBuilder can also construct Trees from indexed state rather than directly from the filesystem.
 
 ---
 
@@ -371,13 +526,13 @@ References map names to commit IDs.
 
 Branch references are stored under:
 
-```text
+```
 .mini-git/refs/heads/
 ```
 
 For example:
 
-```text
+```
 .mini-git/
 └── refs/
     └── heads/
@@ -385,7 +540,9 @@ For example:
         └── feature
 ```
 
-The contents are commit IDs.
+The contents of each reference are commit IDs.
+
+A reference therefore acts as a movable name pointing to a commit.
 
 ---
 
@@ -395,33 +552,38 @@ The contents are commit IDs.
 
 Symbolic HEAD:
 
-```text
+```
 ref: refs/heads/main
 ```
 
 Resolution:
 
-```text
+```
 HEAD
- │
- ▼
+  │
+  ▼
 refs/heads/main
- │
- ▼
+  │
+  ▼
 Commit ID
- │
- ▼
+  │
+  ▼
 Commit
 ```
 
 Detached HEAD:
 
-```text
-HEAD
- │
- ▼
-Commit ID
 ```
+HEAD
+  │
+  ▼
+Commit ID
+  │
+  ▼
+Commit
+```
+
+The current implementation primarily operates with symbolic branch HEADs.
 
 ---
 
@@ -433,17 +595,19 @@ They do not contain copies of commits.
 
 Example:
 
-```text
+```
                  Commit A
-                 /      \
                 /        \
-           main            feature
-             │                │
-             ▼                ▼
-          Commit B         Commit C
+               /          \
+            main          feature
+              │              │
+              ▼              ▼
+          Commit B        Commit C
 ```
 
 The branch names simply identify different commit tips.
+
+Branch creation therefore only creates a new reference pointing to the current commit.
 
 ---
 
@@ -453,78 +617,82 @@ Checkout changes the current branch and restores its snapshot.
 
 The process is:
 
-```text
+```
 checkout feature
-       │
-       ▼
+      │
+      ▼
 resolve refs/heads/feature
-       │
-       ▼
+      │
+      ▼
 commit ID
-       │
-       ▼
-Commit
-       │
-       ▼
-Tree
-       │
-       ▼
+      │
+      ▼
+   Commit
+      │
+      ▼
+     Tree
+      │
+      ▼
 recursive Tree traversal
-       │
-       ▼
+      │
+      ▼
 Working Tree
-       │
-       ▼
+      │
+      ▼
+    Index
+      │
+      ▼
 HEAD → refs/heads/feature
 ```
 
-The current implementation performs basic checkout.
+Checkout therefore synchronizes three important pieces of repository state:
 
-Future work includes:
+```
+HEAD
+Index
+Working Tree
+```
 
-* complete Index synchronization
-* dirty-tree detection
-* deletion of files absent from target snapshots
+Future improvements include:
+
+* complete dirty-tree detection
 * stronger overwrite protection
+* more detailed checkout safety
+* handling all filesystem edge cases
 
 ---
 
 # 11. Diff
 
-Phase 14 introduces the Diff subsystem.
+The Diff subsystem compares repository states.
 
-Its purpose is to compare repository states.
+It is a read-only analysis subsystem.
 
-The Diff subsystem does not modify repository state.
-
-It should not:
+It must not:
 
 * create commits
 * update branches
 * modify HEAD
 * modify the Index
 * create repository objects
+* modify the Working Tree
 
-It is a read-only analysis subsystem.
+Its architecture is:
 
----
-
-# Diff Architecture
-
-```text
+```
                        Diff
                         │
-        ┌───────────────┼───────────────┐
-        │               │               │
-        ▼               ▼               ▼
- Working Tree         Index           Commit
-        │               │               │
-        ▼               ▼               ▼
-    Snapshot         Snapshot        Snapshot
-        │               │               │
-        └───────────────┼───────────────┘
+         ┌──────────────┼──────────────┐
+         │              │              │
+         ▼              ▼              ▼
+    Working Tree       Index         Commit
+         │              │              │
+         ▼              ▼              ▼
+     Snapshot        Snapshot      Snapshot
+         │              │              │
+         └──────────────┼──────────────┘
                         ▼
-                 Compare Snapshots
+                Compare Snapshots
                         │
                         ▼
                    LCS Algorithm
@@ -537,20 +705,22 @@ It is a read-only analysis subsystem.
 
 # Snapshot Abstraction
 
-Different states are normalized into:
+Different repository states are normalized into:
 
-```text
+```
 path → content
 ```
 
 For example:
 
-```text
-main.cpp → "#include <iostream>\n"
+```
+main.cpp  → "#include <iostream>\n"
 README.md → "# Mini Git\n"
 ```
 
-This provides a common representation.
+This common representation allows Diff and Merge to operate independently of how the original state was stored.
+
+Snapshots are therefore a reusable architectural abstraction.
 
 ---
 
@@ -562,7 +732,7 @@ The `.mini-git` directory is excluded.
 
 Conceptually:
 
-```text
+```
 Repository Root
  │
  ├── main.cpp
@@ -575,10 +745,10 @@ Repository Root
 
 becomes:
 
-```text
-main.cpp → content
-README.md → content
-src/parser.cpp → content
+```
+main.cpp        → content
+README.md       → content
+src/parser.cpp  → content
 ```
 
 ---
@@ -587,27 +757,27 @@ src/parser.cpp → content
 
 The Index contains Blob IDs rather than raw file contents.
 
-Therefore the Diff subsystem:
+Therefore:
 
-```text
+```
 Index
- │
- ▼
+  │
+  ▼
 Blob ID
- │
- ▼
+  │
+  ▼
 Object Database
- │
- ▼
-Blob object
- │
- ▼
-Blob content
+  │
+  ▼
+Blob Object
+  │
+  ▼
+Blob Content
 ```
 
-and constructs:
+The final representation is:
 
-```text
+```
 path → content
 ```
 
@@ -617,17 +787,17 @@ path → content
 
 A commit snapshot is reconstructed through:
 
-```text
+```
 Commit
- │
- ▼
+  │
+  ▼
 Tree
- │
- ├── Blob
- ├── Blob
- └── Tree
-      │
-      └── Blob
+  │
+  ├── Blob
+  ├── Blob
+  └── Tree
+       │
+       └── Blob
 ```
 
 The Tree is recursively traversed.
@@ -636,7 +806,7 @@ Every Blob is read from the Object Database.
 
 The final representation is:
 
-```text
+```
 path → content
 ```
 
@@ -646,22 +816,22 @@ path → content
 
 ## Working Tree vs Index
 
-```bash
+```
 mini-git diff
 ```
 
 Architecture:
 
-```text
+```
 Working Tree
       │
       ▼
-Snapshot A
+   Snapshot A
 
 Index
       │
       ▼
-Snapshot B
+   Snapshot B
 
 Snapshot A ↔ Snapshot B
 ```
@@ -672,13 +842,13 @@ This represents unstaged changes.
 
 # Index vs HEAD
 
-```bash
+```
 mini-git diff --cached
 ```
 
 Architecture:
 
-```text
+```
 HEAD
  │
  ▼
@@ -701,21 +871,21 @@ This represents staged changes.
 
 # Commit vs Working Tree
 
-```bash
+```
 mini-git diff <commit>
 ```
 
 Architecture:
 
-```text
+```
 Commit
- │
- ▼
+  │
+  ▼
 Snapshot A
 
 Working Tree
- │
- ▼
+  │
+  ▼
 Snapshot B
 
 Snapshot A ↔ Snapshot B
@@ -725,13 +895,13 @@ Snapshot A ↔ Snapshot B
 
 # Commit vs Commit
 
-```bash
+```
 mini-git diff <commit1> <commit2>
 ```
 
 Architecture:
 
-```text
+```
 Commit 1
    │
    ▼
@@ -751,7 +921,7 @@ Snapshot A ↔ Snapshot B
 
 For every path:
 
-```text
+```
 path ∈ old
 path ∈ new
 ```
@@ -760,7 +930,7 @@ there are four cases.
 
 ## Unchanged
 
-```text
+```
 exists_old = true
 exists_new = true
 content equal
@@ -768,7 +938,7 @@ content equal
 
 Result:
 
-```text
+```
 no output
 ```
 
@@ -776,7 +946,7 @@ no output
 
 ## Modified
 
-```text
+```
 exists_old = true
 exists_new = true
 content different
@@ -784,7 +954,7 @@ content different
 
 Result:
 
-```text
+```
 diff
 ```
 
@@ -792,14 +962,14 @@ diff
 
 ## Added
 
-```text
+```
 exists_old = false
 exists_new = true
 ```
 
 Result:
 
-```text
+```
 all new lines are additions
 ```
 
@@ -807,14 +977,14 @@ all new lines are additions
 
 ## Deleted
 
-```text
+```
 exists_old = true
 exists_new = false
 ```
 
 Result:
 
-```text
+```
 all old lines are deletions
 ```
 
@@ -822,11 +992,11 @@ all old lines are deletions
 
 # LCS Diff Algorithm
 
-Phase 14 uses the Longest Common Subsequence concept.
+The Diff subsystem uses the Longest Common Subsequence concept.
 
 Suppose:
 
-```text
+```
 Old:
 
 A
@@ -837,7 +1007,7 @@ D
 
 and:
 
-```text
+```
 New:
 
 A
@@ -848,7 +1018,7 @@ D
 
 The common subsequence is:
 
-```text
+```
 A
 C
 D
@@ -856,7 +1026,7 @@ D
 
 Therefore the change is:
 
-```text
+```
 -B
 +X
 ```
@@ -867,21 +1037,21 @@ Therefore the change is:
 
 The implementation creates a table:
 
-```text
+```
 LCS[i][j]
 ```
 
-representing the longest common subsequence between suffixes of the two line sequences.
+representing the longest common subsequence between portions of the two line sequences.
 
-The table is used to reconstruct the change sequence.
+The table is then used to reconstruct the change sequence.
 
 ---
 
 # Unified Diff
 
-The final result uses:
+The final result uses unified-diff style output:
 
-```text
+```
 --- a/file
 +++ b/file
 ```
@@ -890,7 +1060,7 @@ followed by changed lines.
 
 Example:
 
-```text
+```
 diff -- mini-git hello.txt
 --- a/hello.txt
 +++ b/hello.txt
@@ -902,47 +1072,645 @@ diff -- mini-git hello.txt
 
 ---
 
-# Data Flow
+# 12. Merge
 
-The full Phase 14 data flow is:
+The Merge subsystem combines two branches or repository histories.
 
-```text
-                 ┌─────────────────┐
-                 │  Working Tree   │
-                 └────────┬────────┘
-                          │
-                          ▼
-                     File Read
-                          │
-                          ▼
-                      Snapshot
-                          │
-                          │
-                 ┌────────┴────────┐
-                 │                 │
-                 ▼                 ▼
-              Compare           Index
-                 ▲                 │
-                 │                 ▼
-                 │             Blob IDs
-                 │                 │
-                 │                 ▼
-                 │          Object Database
-                 │
-                 │
-                 │             Commit
-                 │                │
-                 │                ▼
-                 │               Tree
-                 │                │
-                 │                ▼
-                 └──────────── Snapshot
-                                  │
-                                  ▼
-                             LCS Diff
-                                  │
-                                  ▼
-                           Unified Output
+Its primary responsibility is to determine how the current branch and target branch differ from their common ancestor.
+
+Conceptually:
+
+```
+Current Branch
+      │
+      ▼
+Current Commit
+
+Target Branch
+      │
+      ▼
+Target Commit
+
+      │
+      ▼
+Find Common Ancestor
+      │
+      ▼
+Three-Way Merge
+      │
+  ┌───┴────┐
+  ▼        ▼
+Clean   Conflict
+  │        │
+  ▼        ▼
+```
+
+Result   Error State
+
+Merge uses existing repository abstractions rather than duplicating object-storage logic.
+
+---
+
+# Three-Way Merge
+
+A three-way merge compares three snapshots:
+
+```
+Base
+ │
+ ├── Current
+ │
+ └── Target
+```
+
+Where:
+
+* Base is the common ancestor.
+* Current is the checked-out branch.
+* Target is the branch being merged.
+
+For every path, the merge determines how each side changed relative to Base.
+
+---
+
+# Why Three Snapshots Are Required
+
+Comparing only Current and Target cannot determine whether a change was independently introduced.
+
+For example:
+
+```
+Base:
+hello
+
+Current:
+hello world
+
+Target:
+hello
+```
+
+Current changed while Target did not.
+
+This is not a conflict.
+
+The correct result is:
+
+```
+hello world
+```
+
+Three-way comparison allows the algorithm to identify this safely.
+
+---
+
+# Three-Way Merge Cases
+
+For each path, compare:
+
+```
+Base
+Current
+Target
+```
+
+The major cases are:
+
+## Both Unchanged
+
+```
+Base = Current
+Base = Target
+```
+
+Result:
+
+```
+Base
+```
+
+---
+
+## Only Current Changed
+
+```
+Base = Target
+Current != Base
+```
+
+Result:
+
+```
+Current
+```
+
+---
+
+## Only Target Changed
+
+```
+Base = Current
+Target != Base
+```
+
+Result:
+
+```
+Target
+```
+
+---
+
+## Both Changed Identically
+
+```
+Current = Target
+Current != Base
+```
+
+Result:
+
+```
+Current
+```
+
+No conflict exists because both sides produced the same content.
+
+---
+
+## Both Changed Differently
+
+```
+Current != Base
+Target != Base
+Current != Target
+```
+
+Result:
+
+```
+Conflict
+```
+
+The merge cannot automatically choose a version.
+
+---
+
+# File-Level Conflict Detection
+
+At the current architectural level, conflicts are detected by comparing snapshot contents for each path.
+
+Conceptually:
+
+```
+Base
+  │
+  ├──────────────┐
+  ▼              ▼
+Current        Target
+  │              │
+  └──────┬───────┘
+         ▼
+   Compare Changes
+         │
+   ┌─────┴─────┐
+   ▼           ▼
+ Same        Different
+   │           │
+   ▼           ▼
+ Clean      Conflict
+```
+
+A conflict is reported when both branches modify the same path differently relative to the common ancestor.
+
+---
+
+# Common Ancestor
+
+The common ancestor is a commit reachable from both the current and target commits.
+
+Conceptually:
+
+```
+                 Base
+                /    \
+               /      \
+          Current     Target
+```
+
+The Merge subsystem must identify the appropriate common ancestor before performing the three-way comparison.
+
+This ancestor provides the baseline against which both sides are compared.
+
+---
+
+# Commit Graph Traversal
+
+Merge therefore depends on commit history traversal.
+
+Example:
+
+```
+A
+```
+
+/ 
+B   C
+|   |
+D   E
+
+If the current branch points to D and the target branch points to E:
+
+```
+Current = D
+Target  = E
+Base    = A
+```
+
+The merge compares:
+
+```
+Snapshot(A)
+Snapshot(D)
+Snapshot(E)
+```
+
+---
+
+# Fast-Forward Merge
+
+A fast-forward merge occurs when the current commit is an ancestor of the target commit.
+
+Example:
+
+```
+A → B → C
+```
+
+Current:
+
+```
+A
+```
+
+Target:
+
+```
+C
+```
+
+Because A is already part of C's history, no merge commit is required.
+
+The branch reference can simply move:
+
+```
+main
+  │
+  ▼
+  A
+```
+
+becomes:
+
+```
+main
+  │
+  ▼
+  C
+```
+
+The Working Tree and Index are then synchronized with the target snapshot.
+
+---
+
+# Already Up-to-Date
+
+If the target commit is already an ancestor of the current commit:
+
+```
+A → B → C
+     ↑
+   Target
+
+          ↑
+        Current
+```
+
+then there is nothing to merge.
+
+The current branch remains unchanged.
+
+---
+
+# Non-Conflicting Merge
+
+Suppose:
+
+```
+Base
+/  \
+```
+
+A    B
+
+Current changes `file1.txt`.
+
+Target changes `file2.txt`.
+
+The changes affect different paths.
+
+Therefore:
+
+```
+Base
+  │
+  ├── Current change
+  │
+  └── Target change
+```
+
+can be combined into a single resulting snapshot.
+
+The merge can then create a merge commit.
+
+---
+
+# Conflicting Merge
+
+Suppose:
+
+```
+Base
+  │
+  ├── Current changes hello.txt
+  │
+  └── Target changes hello.txt differently
+```
+
+The result is:
+
+```
+Conflict: hello.txt
+```
+
+The merge must not silently choose one version.
+
+At the current implementation level, the conflict is reported as a merge failure.
+
+The current branch should remain unchanged when the merge fails.
+
+---
+
+# Merge Commit
+
+A successful non-fast-forward merge produces a commit with multiple parents.
+
+Conceptually:
+
+```
+Current Commit ─────┐
+                    │
+                    ▼
+                Merge Commit
+                    ▲
+                    │
+Target Commit ─────┘
+```
+
+The merge commit contains:
+
+```
+tree
+parent 1
+parent 2
+author
+message
+```
+
+The first parent represents the current branch history.
+
+The second parent represents the merged branch history.
+
+---
+
+# Merge Commit Data Flow
+
+```
+Current Commit
+      │
+      ▼
+   Snapshot A
+
+Target Commit
+      │
+      ▼
+   Snapshot B
+
+Common Ancestor
+      │
+      ▼
+   Snapshot Base
+
+      │
+      ▼
+Three-Way Analysis
+      │
+      ▼
+Merged Snapshot
+      │
+      ▼
+   TreeBuilder
+      │
+      ▼
+   Merge Tree
+      │
+      ▼
+  Merge Commit
+      │
+      ├── Parent 1 = Current Commit
+      └── Parent 2 = Target Commit
+```
+
+---
+
+# Merge and Index
+
+The Index is important because a merge must not accidentally overwrite staged user changes.
+
+Before merging, the repository verifies that the Index does not contain changes relative to the current HEAD.
+
+Conceptually:
+
+```
+HEAD Snapshot
+      │
+      ▼
+    Compare
+      ▲
+      │
+Index Snapshot
+```
+
+If they differ:
+
+```
+Cannot merge with staged changes
+```
+
+This prevents the merge operation from silently destroying staged work.
+
+---
+
+# Merge and Working Tree
+
+The current implementation also treats staged state as a safety boundary.
+
+The Working Tree may later receive more sophisticated dirty-state detection.
+
+Future improvements include:
+
+* detecting unstaged modifications
+* detecting untracked files that would be overwritten
+* preserving local modifications
+* conflict markers
+* manual conflict resolution
+* merge continuation
+* merge abort
+
+---
+
+# Merge State Safety
+
+A failed merge should not silently advance repository history.
+
+Important invariant:
+
+```
+failed merge
+     ↓
+current branch unchanged
+     ↓
+HEAD unchanged
+     ↓
+current commit unchanged
+```
+
+For conflicts, the current implementation reports the conflict instead of automatically creating a partially merged commit.
+
+---
+
+# 13. Relationship Between Diff and Merge
+
+Diff and Merge share the Snapshot abstraction.
+
+Diff performs:
+
+```
+Snapshot A
+     │
+     ▼
+  Compare
+     │
+     ▼
+Unified Diff
+```
+
+Merge performs:
+
+```
+Base Snapshot
+     │
+     ├──────────────┐
+     ▼              ▼
+Current Snapshot  Target Snapshot
+     │              │
+     └──────┬───────┘
+            ▼
+    Three-Way Analysis
+            │
+            ▼
+       Merge Result
+```
+
+Therefore Diff establishes reusable infrastructure for future merge functionality.
+
+---
+
+# Complete Phase 15 Data Flow
+
+```
+                       CLI
+                        │
+                        ▼
+                   Repository
+                        │
+      ┌─────────────────┼──────────────────┐
+      │                 │                  │
+      ▼                 ▼                  ▼
+    HEAD             Branches             Index
+      │                                    │
+      ▼                                    ▼
+   Commit                              Blob IDs
+      │                                    │
+      ▼                                    ▼
+     Tree ◄──────── Object Database ──────┘
+      │
+      ▼
+    Blobs
+
+
+                ┌─────────────┐
+                │    Diff     │
+                └──────┬──────┘
+                       │
+      ┌────────────────┼────────────────┐
+      │                │                │
+      ▼                ▼                ▼
+Working Tree         Index           Commit
+      │                │                │
+      └────────────────┼────────────────┘
+                       ▼
+                    Snapshot
+                       │
+                       ▼
+                   LCS Diff
+                       │
+                       ▼
+                Unified Output
+
+
+                ┌─────────────┐
+                │    Merge    │
+                └──────┬──────┘
+                       │
+      ┌────────────────┼────────────────┐
+      │                │                │
+      ▼                ▼                ▼
+     Base           Current           Target
+   Snapshot         Snapshot         Snapshot
+      │                │                │
+      └────────────────┼────────────────┘
+                       ▼
+              Three-Way Analysis
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+            ▼                     ▼
+         Clean                 Conflict
+            │                     │
+            ▼                     ▼
+      Merged Snapshot         Error State
+            │
+            ▼
+         TreeBuilder
+            │
+            ▼
+       Merge Tree
+            │
+            ▼
+      Merge Commit
+      ├── Parent 1
+      └── Parent 2
 ```
 
 ---
@@ -951,32 +1719,45 @@ The full Phase 14 data flow is:
 
 The architecture can be viewed as:
 
-```text
-                 Repository
-                      │
-          ┌───────────┼───────────┐
-          │           │           │
-          ▼           ▼           ▼
-         HEAD      References    Index
-          │                       │
-          ▼                       ▼
-       Commit                 Blob IDs
-          │                       │
-          ▼                       ▼
-        Tree                Object Database
-          │
-          ▼
-        Blobs
+```
+             Repository
+                  │
+      ┌───────────┼───────────┐
+      │           │           │
+      ▼           ▼           ▼
+     HEAD      References    Index
+      │                       │
+      ▼                       ▼
+   Commit                 Blob IDs
+      │                       │
+      ▼                       ▼
+    Tree                Object Database
+      │
+      ▼
+    Blobs
 ```
 
 Diff observes these components:
 
-```text
+```
 Working Tree ───────┐
                     │
 Index ──────────────┼──► Diff
                     │
 Commit ─────────────┘
+```
+
+Merge observes repository history and snapshots:
+
+```
+Current Commit ───────┐
+                      │
+Target Commit ────────┼──► Merge
+                      │
+Common Ancestor ──────┘
+                      │
+                      ▼
+                Three-Way Merge
 ```
 
 ---
@@ -993,6 +1774,8 @@ Responsible for:
 * branches
 * checkout
 * current commit resolution
+* working-tree restoration
+* index synchronization
 
 ---
 
@@ -1003,6 +1786,8 @@ Responsible for:
 * reference representation
 * reference paths
 * reference values
+* reading references
+* writing references
 
 ---
 
@@ -1029,6 +1814,7 @@ Responsible for:
 * Tree entries
 * Tree serialization
 * Tree deserialization
+* directory snapshot representation
 
 ---
 
@@ -1037,11 +1823,13 @@ Responsible for:
 Responsible for:
 
 * Tree reference
-* parent reference
+* parent references
 * author
 * message
 * commit serialization
 * commit deserialization
+
+A merge commit may contain multiple parents.
 
 ---
 
@@ -1062,7 +1850,8 @@ Responsible for:
 
 * staged paths
 * Blob IDs
-* persistence of staging state
+* staging-state persistence
+* index synchronization with checked-out snapshots
 
 ---
 
@@ -1072,6 +1861,7 @@ Responsible for:
 
 * converting Index state into Tree objects
 * recursively creating directory Trees
+* constructing a snapshot Tree from staged entries
 
 ---
 
@@ -1084,28 +1874,45 @@ Responsible for:
 * detecting changes
 * generating unified diff output
 
+Diff is read-only.
+
+---
+
+## `Merge`
+
+Responsible for:
+
+* resolving current and target commits
+* identifying common ancestry
+* constructing snapshots
+* performing three-way comparison
+* detecting conflicts
+* handling fast-forward merges
+* handling already-up-to-date states
+* creating merge commits for successful non-fast-forward merges
+
+Merge should coordinate existing subsystems rather than duplicate their storage logic.
+
 ---
 
 # Repository Layout
 
 A Mini Git repository has approximately this structure:
 
-```text
+```
 project/
 │
 ├── source files
 │
 └── .mini-git/
     ├── HEAD
-    │
+    ├── index
     ├── objects/
     │
-    ├── refs/
-    │   └── heads/
-    │       ├── main
-    │       └── feature
-    │
-    └── index
+    └── refs/
+        └── heads/
+            ├── main
+            └── feature
 ```
 
 The Working Tree exists outside `.mini-git`.
@@ -1120,12 +1927,12 @@ The `.mini-git` directory stores repository metadata and persistent objects.
 
 Object ID must be determined by serialized content.
 
-```text
+```
 same serialized content
         ↓
-same hash
+    same hash
         ↓
-same object ID
+    same object ID
 ```
 
 ---
@@ -1158,92 +1965,135 @@ Symbolic HEAD must resolve through its referenced branch.
 
 ---
 
+## Index Synchronization
+
+After checkout, the Index and Working Tree must correspond to the checked-out commit.
+
+---
+
 ## Diff Read-Only Behavior
 
 Diff must not modify repository state.
 
 ---
 
-# Future Architecture
+## Merge Safety
 
-After Diff, the next major subsystem is Merge.
-
-The architecture will eventually become:
-
-```text
-                 Commit A
-                /        \
-               /          \
-          Commit B       Commit C
-               \          /
-                \        /
-                 Merge
-                   │
-                   ▼
-                Commit D
-```
-
-Merge will reuse concepts already developed:
-
-* commit traversal
-* Tree reconstruction
-* snapshots
-* diff
-* ancestry
-
-This is why the snapshot abstraction introduced in Phase 14 is important.
+A failed or conflicting merge must not silently advance the current branch.
 
 ---
 
-# Future Merge Pipeline
+## Merge Commit Parents
 
-Conceptually:
+A non-fast-forward merge commit must preserve both histories:
 
-```text
-Current Branch
-      │
-      ▼
-Current Commit
-
-Target Branch
-      │
-      ▼
-Target Commit
-
-      │
-      ▼
-
-Find Common Ancestor
-
-      │
-      ▼
-
-Three Snapshots
-
-      │
-      ├──────────────┐
-      ▼              ▼
-   Current          Target
-      │              │
-      └──────┬───────┘
-             ▼
-        Three-Way Merge
-             │
-       ┌─────┴─────┐
-       ▼           ▼
-    Clean        Conflict
-    Merge         State
+```
+parent 1 = current branch commit
+parent 2 = target branch commit
 ```
 
 ---
 
-# Architectural Principles
+## Snapshot Consistency
+
+Snapshots used by Diff and Merge must represent the same path/content abstraction:
+
+```
+path → content
+```
+
+This allows the same comparison infrastructure to be reused across multiple repository operations.
+
+---
+
+# Current Architecture
+
+At Phase 15:
+
+```
+                       CLI
+                        │
+                        ▼
+                   Repository
+                        │
+      ┌─────────────────┼──────────────────┐
+      │                 │                  │
+      ▼                 ▼                  ▼
+    HEAD             Branches             Index
+      │                                    │
+      ▼                                    ▼
+   Commit                              Blob IDs
+      │                                    │
+      ▼                                    ▼
+     Tree ◄──────── Object Database ──────┘
+      │
+      ▼
+    Blobs
+
+
+                 ┌──────────────┐
+                 │     Diff     │
+                 └──────┬───────┘
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+          ▼             ▼             ▼
+    Working Tree      Index        Commit
+          │             │             │
+          └─────────────┼─────────────┘
+                        ▼
+                     Snapshot
+                        │
+                        ▼
+                    LCS Diff
+                        │
+                        ▼
+                 Unified Output
+
+
+                 ┌──────────────┐
+                 │    Merge     │
+                 └──────┬───────┘
+                        │
+         ┌──────────────┼──────────────┐
+         │              │              │
+         ▼              ▼              ▼
+        Base         Current         Target
+      Snapshot       Snapshot       Snapshot
+         │              │              │
+         └──────────────┼──────────────┘
+                        ▼
+               Three-Way Analysis
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+            Clean              Conflict
+              │                   │
+              ▼                   ▼
+       Merged Snapshot         Error
+              │
+              ▼
+          TreeBuilder
+              │
+              ▼
+         Merge Tree
+              │
+              ▼
+        Merge Commit
+         ├── Parent 1
+         └── Parent 2
+```
+
+---
+
+# Phase 15 Architectural Principles
 
 Mini Git follows these principles:
 
 ### Separation of Concerns
 
-Storage, repository state, objects, staging, and diffing remain separate.
+Storage, repository state, objects, staging, diffing, and merging remain separate.
 
 ### Immutable Objects
 
@@ -1255,11 +2105,27 @@ Object identity depends on deterministic serialized data.
 
 ### Explicit State
 
-Working Tree, Index, HEAD, branches, and commits are represented explicitly.
+Working Tree, Index, HEAD, branches, commits, and snapshots are represented explicitly.
 
 ### Reusable Abstractions
 
-Snapshots introduced for Diff can later be reused by Merge and educational tools.
+Snapshots introduced for Diff are reused by Merge.
+
+### History as a Graph
+
+Commits form a directed history graph rather than a simple linear sequence.
+
+### References as Pointers
+
+Branches identify commit tips rather than owning histories.
+
+### Read-Only Analysis
+
+Diff observes repository state without modifying it.
+
+### Safe State Transitions
+
+Checkout and Merge must avoid silently destroying repository state.
 
 ### Testability
 
@@ -1271,47 +2137,90 @@ New phases build on previous abstractions rather than replacing them unnecessari
 
 ---
 
-# Current Architecture
+# Phase 15 Result
 
-At Phase 14:
+Phase 15 establishes the first complete merge architecture for Mini Git.
 
-```text
-                           CLI
-                            │
-                            ▼
-                       Repository
-                            │
-          ┌─────────────────┼──────────────────┐
-          │                 │                  │
-          ▼                 ▼                  ▼
-        HEAD             Branches             Index
-          │                                    │
-          ▼                                    ▼
-       Commit                              Blob IDs
-          │                                    │
-          ▼                                    │
-         Tree ◄──────── Object Database ───────┘
-          │
-          ▼
-        Blobs
+The project now contains the conceptual pipeline:
 
-
-                    Diff
-                     │
-       ┌─────────────┼─────────────┐
-       │             │             │
-       ▼             ▼             ▼
- Working Tree      Index        Commit
-       │             │             │
-       └─────────────┼─────────────┘
-                     ▼
-                  Snapshot
-                     │
-                     ▼
-                 LCS Diff
-                     │
-                     ▼
-                Unified Output
+```
+Working Tree
+      │
+      ▼
+    Index
+      │
+      ▼
+    Tree
+      │
+      ▼
+   Commit
+      │
+      ▼
+   History
+      │
+      ├──────────────────────┐
+      │                      │
+      ▼                      ▼
+    Diff                   Merge
+      │                      │
+      ▼                      ▼
+  Snapshots            Common Ancestor
+      │                      │
+      ▼                      ▼
+   LCS Diff          Three-Way Analysis
+                             │
+                   ┌─────────┴─────────┐
+                   │                   │
+                   ▼                   ▼
+                 Clean              Conflict
+                   │
+                   ▼
+              Merge Snapshot
+                   │
+                   ▼
+                TreeBuilder
+                   │
+                   ▼
+              Merge Commit
+              ├── Parent 1
+              └── Parent 2
 ```
 
-This is the architecture that Phase 14 establishes before moving into Merge and conflict handling.
+This architecture provides the foundation for future work such as:
+
+* detailed conflict markers
+* manual conflict resolution
+* merge continuation
+* merge abort
+* recursive ancestry analysis
+* tags
+* repository integrity checking
+* object garbage collection
+* more advanced history visualization
+
+The important architectural progression is:
+
+```
+Phase 13
+   │
+   ▼
+Branches + Checkout
+   │
+   ▼
+Phase 14
+   │
+   ▼
+Diff + Snapshots
+   │
+   ▼
+Phase 15
+   │
+   ▼
+Three-Way Merge + Conflict Detection
+   │
+   ▼
+Future
+   │
+   ▼
+Conflict Resolution + Advanced History
+```

@@ -3,6 +3,7 @@
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
 #include "Tree.hpp"
+#include "Index.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -373,6 +374,112 @@ void Repository::checkout_tree_recursive(
     }
 }
 
+void Repository::remove_working_tree_files() const
+{
+    for (
+        const auto& entry :
+        std::filesystem::directory_iterator(
+            root_
+        )
+    ) {
+        if (
+            entry.path().filename() ==
+            ".mini-git"
+        ) {
+            continue;
+        }
+
+        std::filesystem::remove_all(
+            entry.path()
+        );
+    }
+}
+
+void Repository::restore_commit(
+    const std::string& commit_id
+) const
+{
+    if (commit_id.empty()) {
+        throw std::invalid_argument(
+            "Commit ID cannot be empty"
+        );
+    }
+
+    ObjectDatabase database(
+        git_dir_
+    );
+
+    const std::string commit_data =
+        database.read(commit_id);
+
+    const Commit commit =
+        Commit::deserialize(
+            commit_data
+        );
+
+    remove_working_tree_files();
+
+    checkout_tree(
+        commit.tree_id()
+    );
+}
+
+void Repository::rebuild_index_from_tree(
+    const std::string& tree_id
+) const
+{
+    Index index(
+        git_dir_ / "index"
+    );
+
+    index.load();
+    index.clear();
+
+    add_tree_to_index(
+        tree_id,
+        std::filesystem::path{},
+        index
+    );
+
+    index.save();
+}
+
+void Repository::add_tree_to_index(
+    const std::string& tree_id,
+    const std::filesystem::path& relative_directory,
+    Index& index
+) const
+{
+    ObjectDatabase database(
+        git_dir_
+    );
+
+    const std::string data =
+        database.read(tree_id);
+
+    Tree tree =
+        Tree::deserialize(data);
+
+    for (const auto& entry : tree.entries()) {
+        const auto relative_path =
+            relative_directory / entry.name;
+
+        if (entry.is_tree) {
+            add_tree_to_index(
+                entry.object_id,
+                relative_path,
+                index
+            );
+        }
+        else {
+            index.add({
+                relative_path.generic_string(),
+                entry.object_id
+            });
+        }
+    }
+}
+
 void Repository::checkout(
     const std::string& branch
 )
@@ -430,6 +537,10 @@ void Repository::checkout(
     );
 
     checkout_tree(
+        commit.tree_id()
+    );
+
+    rebuild_index_from_tree(
         commit.tree_id()
     );
 }
