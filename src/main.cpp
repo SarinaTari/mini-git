@@ -13,152 +13,221 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
-int main(int argc, char* argv[]) {
-    if (argc == 1) {
-        std::cout << "Mini Git\n";
-        return 0;
+namespace {
+
+void print_usage()
+{
+    std::cout
+        << "Mini Git\n\n"
+        << "Usage:\n"
+        << "  mini-git --version\n"
+        << "  mini-git init\n"
+        << "  mini-git hash-file <file>\n"
+        << "  mini-git hash-object <file>\n"
+        << "  mini-git add <file>\n"
+        << "  mini-git status\n"
+        << "  mini-git commit -m <message>\n"
+        << "  mini-git log\n"
+        << "  mini-git branch\n"
+        << "  mini-git branch <name>\n"
+        << "  mini-git checkout <name>\n";
+}
+
+Repository open_repository()
+{
+    return Repository(
+        std::filesystem::current_path()
+    );
+}
+
+void command_init()
+{
+    Repository repository(
+        std::filesystem::current_path()
+    );
+
+    repository.initialize();
+
+    std::cout
+        << "Initialized empty Mini Git repository in "
+        << repository.git_directory()
+        << '\n';
+}
+
+void command_branch(
+    Repository& repository,
+    int argc,
+    char* argv[]
+)
+{
+    if (argc == 2) {
+        const auto branches =
+            repository.branches();
+
+        if (branches.empty()) {
+            std::cout << "No branches yet.\n";
+            return;
+        }
+
+        const std::string current =
+            repository.current_branch();
+
+        for (const auto& branch : branches) {
+            if (branch == current) {
+                std::cout << "* ";
+            }
+            else {
+                std::cout << "  ";
+            }
+
+            std::cout << branch << '\n';
+        }
+
+        return;
     }
 
-    const std::string command = argv[1];
+    if (argc == 3) {
+        repository.create_branch(argv[2]);
 
-    if (command == "--version") {
         std::cout
-            << "mini-git version 0.1.0\n";
+            << "Created branch '"
+            << argv[2]
+            << "'\n";
 
-        return 0;
+        return;
     }
 
-    if (command == "init") {
-        try {
-            Repository repository(
-                std::filesystem::current_path()
+    throw std::runtime_error(
+        "Usage: mini-git branch [<name>]"
+    );
+}
+
+void command_checkout(
+    Repository& repository,
+    const std::string& branch
+)
+{
+    repository.checkout(branch);
+
+    std::cout
+        << "Switched to branch '"
+        << branch
+        << "'\n";
+}
+
+} // namespace
+
+int main(int argc, char* argv[])
+{
+    try {
+        if (argc < 2) {
+            print_usage();
+            return 1;
+        }
+
+        const std::string command = argv[1];
+
+        if (command == "--version") {
+            std::cout << "Mini Git version 0.1.0\n";
+            return 0;
+        }
+
+        if (command == "init") {
+            command_init();
+            return 0;
+        }
+
+        if (command == "branch") {
+            Repository repository = open_repository();
+
+            command_branch(
+                repository,
+                argc,
+                argv
             );
 
-            repository.initialize();
+            return 0;
+        }
 
-            std::cout
-                << "Initialized empty Mini Git repository.\n";
+        if (command == "checkout") {
+            if (argc != 3) {
+                throw std::runtime_error(
+                    "Usage: mini-git checkout <branch>"
+                );
+            }
+
+            Repository repository = open_repository();
+
+            command_checkout(
+                repository,
+                argv[2]
+            );
 
             return 0;
+        }
 
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
+        if (command == "hash-file") {
+            if (argc != 3) {
+                throw std::runtime_error(
+                    "Usage: mini-git hash-file <file>"
+                );
+            }
+
+            std::cout
+                << Hash::sha256(
+                    FileReader::read(argv[2])
+                )
                 << '\n';
 
-            return 1;
-        }
-    }
-
-    if (command == "hash-file") {
-        if (argc < 3) {
-            std::cerr
-                << "mini-git: missing file path\n";
-
-            return 1;
+            return 0;
         }
 
-        try {
-            Blob blob =
+        if (command == "hash-object") {
+            if (argc != 3) {
+                throw std::runtime_error(
+                    "Usage: mini-git hash-object <file>"
+                );
+            }
+
+            const Blob blob =
                 Blob::from_file(argv[2]);
 
-            const std::string object_id =
-                Hash::sha256(blob.serialize());
-
-            std::cout
-                << object_id
-                << '\n';
-
-            return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
-        }
-    }
-
-    if (command == "hash-object") {
-        if (argc < 3) {
-            std::cerr
-                << "mini-git: missing file path\n";
-
-            return 1;
-        }
-
-        try {
-            const std::filesystem::path file_path =
-                argv[2];
-
-            Blob blob =
-                Blob::from_file(file_path);
-
-            Repository repository(
-                std::filesystem::current_path()
-            );
+            Repository repository =
+                open_repository();
 
             ObjectDatabase database(
                 repository.git_directory()
             );
 
-            const std::string object_id =
-                database.store(blob);
-
             std::cout
-                << object_id
+                << database.store(blob)
                 << '\n';
 
             return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
-        }
-    }
-
-    if (command == "add") {
-        if (argc < 3) {
-            std::cerr
-                << "mini-git: missing file path\n";
-
-            return 1;
         }
 
-        try {
-            const std::filesystem::path file_path =
-                argv[2];
-
-            Repository repository(
-                std::filesystem::current_path()
-            );
-
-            if (!std::filesystem::exists(
-                    repository.git_directory())) {
+        if (command == "add") {
+            if (argc != 3) {
                 throw std::runtime_error(
-                    "Not a Mini Git repository"
+                    "Usage: mini-git add <file>"
                 );
             }
 
-            if (!std::filesystem::is_regular_file(
-                    file_path)) {
-                throw std::runtime_error(
-                    "Not a regular file: " +
-                    file_path.string()
+            Repository repository =
+                open_repository();
+
+            const auto file =
+                std::filesystem::absolute(argv[2]);
+
+            const auto relative =
+                std::filesystem::relative(
+                    file,
+                    std::filesystem::current_path()
                 );
-            }
 
             Blob blob =
-                Blob::from_file(file_path);
+                Blob::from_file(file);
 
             ObjectDatabase database(
                 repository.git_directory()
@@ -168,180 +237,82 @@ int main(int argc, char* argv[]) {
                 database.store(blob);
 
             Index index(
-                repository.git_directory() /
-                "index"
+                repository.git_directory()
             );
 
             index.load();
 
-            index.add({
-                file_path.string(),
-                object_id
-            });
+            index.add(
+                IndexEntry{
+                    relative.generic_string(),
+                    object_id
+                }
+            );
 
             index.save();
 
             std::cout
-                << "Staged: "
-                << file_path
+                << "Added "
+                << relative.generic_string()
                 << '\n';
 
             return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
         }
-    }
 
-    if (command == "status") {
-        try {
-            Repository repository(
-                std::filesystem::current_path()
-            );
+        if (command == "status") {
+            Repository repository =
+                open_repository();
 
-            if (!std::filesystem::exists(
-                    repository.git_directory())) {
-                throw std::runtime_error(
-                    "Not a Mini Git repository"
-                );
-            }
-
-            Index index(
-                repository.git_directory() /
-                "index"
-            );
-
-            index.load();
-
-            Status status(
-                std::filesystem::current_path(),
-                index
-            );
-
-            const StatusResult result =
-                status.collect();
-
-            if (repository.is_detached()) {
-                std::cout
-                    << "HEAD detached at "
-                    << repository.head_commit()
-                    << "\n\n";
-            } else {
+            if (!repository.is_detached_head()) {
                 std::cout
                     << "On branch "
                     << repository.current_branch()
-                    << "\n\n";
+                    << '\n';
             }
+            else {
+                const std::string commit =
+                    repository.head_commit();
 
-            if (!result.modified.empty()) {
-                std::cout
-                    << "Changes not staged for commit:\n";
-
-                for (const auto& path : result.modified) {
+                if (commit.empty()) {
                     std::cout
-                        << "  modified: "
-                        << path
+                        << "HEAD detached\n";
+                }
+                else {
+                    std::cout
+                        << "HEAD detached at "
+                        << commit.substr(
+                            0,
+                            7
+                        )
                         << '\n';
                 }
-
-                std::cout << '\n';
-            }
-
-            if (!result.deleted.empty()) {
-                std::cout
-                    << "Deleted files:\n";
-
-                for (const auto& path : result.deleted) {
-                    std::cout
-                        << "  deleted: "
-                        << path
-                        << '\n';
-                }
-
-                std::cout << '\n';
-            }
-
-            if (!result.untracked.empty()) {
-                std::cout
-                    << "Untracked files:\n";
-
-                for (const auto& path : result.untracked) {
-                    std::cout
-                        << "  "
-                        << path
-                        << '\n';
-                }
-
-                std::cout << '\n';
-            }
-
-            if (
-                result.modified.empty() &&
-                result.deleted.empty() &&
-                result.untracked.empty()
-            ) {
-                std::cout
-                    << "Working tree clean.\n";
             }
 
             return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
-        }
-    }
-
-    if (command == "commit") {
-        if (
-            argc < 4 ||
-            std::string(argv[2]) != "-m"
-        ) {
-            std::cerr
-                << "mini-git: usage: "
-                << "mini-git commit -m \"message\"\n";
-
-            return 1;
         }
 
-        try {
-            const std::string message = argv[3];
-
-            if (message.empty()) {
+        if (command == "commit") {
+            if (
+                argc != 4 ||
+                std::string(argv[2]) != "-m"
+            ) {
                 throw std::runtime_error(
-                    "Commit message cannot be empty"
+                    "Usage: mini-git commit -m <message>"
                 );
             }
 
-            Repository repository(
-                std::filesystem::current_path()
-            );
+            Repository repository =
+                open_repository();
 
-            if (!std::filesystem::exists(
-                    repository.git_directory())) {
+            if (repository.is_detached_head()) {
                 throw std::runtime_error(
-                    "Not a Mini Git repository"
-                );
-            }
-
-            if (repository.is_detached()) {
-                throw std::runtime_error(
-                    "Cannot commit while HEAD is detached"
+                    "Cannot commit on detached HEAD "
+                    "in Phase 13"
                 );
             }
 
             Index index(
-                repository.git_directory() /
-                "index"
+                repository.git_directory()
             );
 
             index.load();
@@ -356,104 +327,80 @@ int main(int argc, char* argv[]) {
                 repository.git_directory()
             );
 
-            TreeBuilder tree_builder(database);
+            TreeBuilder tree_builder(
+                database
+            );
 
             const std::string tree_id =
                 tree_builder.build_from_index(
                     index,
-                    std::filesystem::current_path()
+                    repository.root()
                 );
 
-            const std::string parent_id =
+            const std::string parent =
                 repository.head_commit();
 
             const char* user =
                 std::getenv("USER");
 
             const std::string author =
-                user && *user
-                    ? user
-                    : "unknown";
+                user ? user : "unknown";
 
             Commit commit(
                 tree_id,
-                parent_id,
+                parent,
                 author,
-                message
+                argv[3]
             );
 
             const std::string commit_id =
                 database.store(commit);
 
-            const std::string branch =
-                repository.current_branch();
-
             repository.update_branch(
-                branch,
+                repository.current_branch(),
                 commit_id
             );
 
             std::cout
                 << "["
-                << branch
+                << repository.current_branch()
                 << " "
                 << commit_id.substr(0, 7)
                 << "] "
-                << message
+                << argv[3]
                 << '\n';
 
             return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
         }
-    }
 
-    if (command == "log") {
-        try {
-            Repository repository(
-                std::filesystem::current_path()
+        if (command == "log") {
+            Repository repository =
+                open_repository();
+
+            ObjectDatabase database(
+                repository.git_directory()
             );
 
-            if (!std::filesystem::exists(
-                    repository.git_directory())) {
-                throw std::runtime_error(
-                    "Not a Mini Git repository"
-                );
-            }
-
-            const std::string current_commit_id =
+            std::string current =
                 repository.head_commit();
 
-            if (current_commit_id.empty()) {
+            if (current.empty()) {
                 std::cout
                     << "No commits yet.\n";
 
                 return 0;
             }
 
-            ObjectDatabase database(
-                repository.git_directory()
-            );
-
-            std::string commit_id =
-                current_commit_id;
-
-            while (!commit_id.empty()) {
+            while (!current.empty()) {
                 const std::string data =
-                    database.read(commit_id);
+                    database.read(current);
 
                 Commit commit =
                     Commit::deserialize(data);
 
                 std::cout
                     << "commit "
-                    << commit_id
+                    << current
                     << '\n';
 
                 std::cout
@@ -461,91 +408,29 @@ int main(int argc, char* argv[]) {
                     << commit.author()
                     << '\n';
 
-                std::cout << '\n';
-
                 std::cout
+                    << '\n'
                     << "    "
                     << commit.message()
+                    << '\n'
                     << '\n';
 
-                std::cout << '\n';
-
-                commit_id =
+                current =
                     commit.parent_id();
             }
 
             return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
         }
+
+        print_usage();
+        return 1;
     }
+    catch (const std::exception& error) {
+        std::cerr
+            << "Error: "
+            << error.what()
+            << '\n';
 
-    if (command == "branch") {
-        try {
-            Repository repository(
-                std::filesystem::current_path()
-            );
-
-            if (!std::filesystem::exists(
-                    repository.git_directory())) {
-                throw std::runtime_error(
-                    "Not a Mini Git repository"
-                );
-            }
-
-            const std::vector<std::string> branches =
-                repository.branches();
-
-            const std::string current_branch =
-                repository.current_branch();
-
-            if (branches.empty()) {
-                if (!current_branch.empty()) {
-                    std::cout
-                        << "* "
-                        << current_branch
-                        << '\n';
-                }
-
-                return 0;
-            }
-
-            for (const auto& branch : branches) {
-                if (branch == current_branch) {
-                    std::cout
-                        << "* ";
-                } else {
-                    std::cout
-                        << "  ";
-                }
-
-                std::cout
-                    << branch
-                    << '\n';
-            }
-
-            return 0;
-
-        } catch (const std::exception& e) {
-            std::cerr
-                << "mini-git: "
-                << e.what()
-                << '\n';
-
-            return 1;
-        }
+        return 1;
     }
-
-    std::cout
-        << "Unknown command: "
-        << command
-        << '\n';
-
-    return 1;
 }

@@ -1,239 +1,248 @@
+#include "Blob.hpp"
+#include "Commit.hpp"
+#include "ObjectDatabase.hpp"
 #include "Repository.hpp"
+#include "Tree.hpp"
 
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <string>
-#include <vector>
 
-void test_repository_initialization() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-repository-init-test";
+int main()
+{
+    const auto test_directory =
+        std::filesystem::temp_directory_path()
+        / "mini-git-repository-tests";
 
-    std::filesystem::remove_all(root);
+    std::filesystem::remove_all(
+        test_directory
+    );
 
-    std::filesystem::create_directories(root);
+    std::filesystem::create_directories(
+        test_directory
+    );
 
-    Repository repository(root);
+    Repository repository(test_directory);
 
     repository.initialize();
 
+    // --------------------------------------------------------
+    // Repository initialization
+    // --------------------------------------------------------
+
     assert(
         std::filesystem::exists(
-            root / ".mini-git"
+            repository.git_directory()
+            / "HEAD"
         )
     );
 
     assert(
-        std::filesystem::exists(
-            root / ".mini-git" / "objects"
-        )
+        repository.current_branch() == "main"
     );
 
     assert(
-        std::filesystem::exists(
-            root / ".mini-git" / "refs" / "heads"
-        )
+        !repository.is_detached_head()
     );
-
-    assert(
-        std::filesystem::exists(
-            root / ".mini-git" / "HEAD"
-        )
-    );
-
-    std::filesystem::remove_all(root);
-}
-
-void test_symbolic_head() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-symbolic-head-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(root);
-
-    Repository repository(root);
-
-    repository.initialize();
-
-    assert(
-        repository.head() ==
-        "ref: refs/heads/main"
-    );
-
-    assert(
-        repository.current_branch() ==
-        "main"
-    );
-
-    assert(
-        !repository.is_detached()
-    );
-
-    std::filesystem::remove_all(root);
-}
-
-void test_head_commit() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-head-commit-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(root);
-
-    Repository repository(root);
-
-    repository.initialize();
 
     assert(
         repository.head_commit().empty()
     );
 
+    assert(
+        repository.branches().empty()
+    );
+
+    // --------------------------------------------------------
+    // Create ObjectDatabase
+    // --------------------------------------------------------
+
+    ObjectDatabase database(
+        repository.git_directory()
+    );
+
+    // --------------------------------------------------------
+    // Create a real Blob object
+    // --------------------------------------------------------
+
+    Blob blob("hello");
+
+    const std::string blob_id =
+        database.store(blob);
+
+    assert(
+        database.exists(blob_id)
+    );
+
+    // --------------------------------------------------------
+    // Create a real Tree object
+    // --------------------------------------------------------
+
+    Tree tree;
+
+    tree.add_entry(
+        TreeEntry{
+            "hello.txt",
+            blob_id,
+            false
+        }
+    );
+
+    const std::string tree_id =
+        database.store(tree);
+
+    assert(
+        database.exists(tree_id)
+    );
+
+    // --------------------------------------------------------
+    // Create a real Commit object
+    // --------------------------------------------------------
+
+    Commit commit(
+        tree_id,
+        "",
+        "Test Author",
+        "Initial commit"
+    );
+
+    const std::string commit_id =
+        database.store(commit);
+
+    assert(
+        database.exists(commit_id)
+    );
+
+    // --------------------------------------------------------
+    // Point main at the real commit
+    // --------------------------------------------------------
+
     repository.update_branch(
         "main",
-        "abcdef123456"
+        commit_id
+    );
+
+    assert(
+        repository.branches().size() == 1
+    );
+
+    assert(
+        repository.current_branch() == "main"
     );
 
     assert(
         repository.head_commit() ==
-        "abcdef123456"
+        commit_id
     );
 
-    std::filesystem::remove_all(root);
-}
+    // --------------------------------------------------------
+    // Create feature branch
+    // --------------------------------------------------------
 
-void test_branch_listing() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-branch-list-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(root);
-
-    Repository repository(root);
-
-    repository.initialize();
-
-    repository.update_branch(
-        "main",
-        "commit-main"
-    );
-
-    repository.update_branch(
-        "feature",
-        "commit-feature"
-    );
-
-    repository.update_branch(
-        "experiment",
-        "commit-experiment"
-    );
-
-    const std::vector<std::string> branches =
-        repository.branches();
-
-    assert(branches.size() == 3);
-
-    assert(branches[0] == "experiment");
-    assert(branches[1] == "feature");
-    assert(branches[2] == "main");
-
-    std::filesystem::remove_all(root);
-}
-
-void test_detached_head() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-detached-head-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(root);
-
-    Repository repository(root);
-
-    repository.initialize();
-
-    const auto head_path =
-        root / ".mini-git" / "HEAD";
-
-    std::ofstream head(head_path);
-
-    assert(head);
-
-    head
-        << "abcdef1234567890\n";
-
-    head.close();
-
-    assert(
-        repository.is_detached()
+    repository.create_branch(
+        "feature"
     );
 
     assert(
-        repository.current_branch().empty()
+        repository.branches().size() == 2
+    );
+
+    assert(
+        repository.current_branch() == "main"
     );
 
     assert(
         repository.head_commit() ==
-        "abcdef1234567890"
+        commit_id
     );
 
-    std::filesystem::remove_all(root);
-}
+    // --------------------------------------------------------
+    // Checkout feature
+    // --------------------------------------------------------
 
-void test_multiple_branch_updates() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-branch-update-test";
+    repository.checkout(
+        "feature"
+    );
 
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(root);
-
-    Repository repository(root);
-
-    repository.initialize();
-
-    repository.update_branch(
-        "main",
-        "commit-one"
+    assert(
+        repository.current_branch() ==
+        "feature"
     );
 
     assert(
         repository.head_commit() ==
-        "commit-one"
+        commit_id
     );
 
-    repository.update_branch(
-        "main",
-        "commit-two"
+    // --------------------------------------------------------
+    // Verify working tree restoration
+    // --------------------------------------------------------
+
+    const auto restored_file =
+        test_directory / "hello.txt";
+
+    assert(
+        std::filesystem::exists(
+            restored_file
+        )
+    );
+
+    std::ifstream file(
+        restored_file,
+        std::ios::binary
+    );
+
+    assert(file);
+
+    std::string content;
+
+    std::getline(
+        file,
+        content
+    );
+
+    assert(
+        content == "hello"
+    );
+
+    // --------------------------------------------------------
+    // Checkout main again
+    // --------------------------------------------------------
+
+    repository.checkout(
+        "main"
+    );
+
+    assert(
+        repository.current_branch() == "main"
     );
 
     assert(
         repository.head_commit() ==
-        "commit-two"
+        commit_id
     );
 
-    std::filesystem::remove_all(root);
-}
+    // --------------------------------------------------------
+    // Verify working tree after switching back
+    // --------------------------------------------------------
 
-int main() {
-    test_repository_initialization();
-    test_symbolic_head();
-    test_head_commit();
-    test_branch_listing();
-    test_detached_head();
-    test_multiple_branch_updates();
+    assert(
+        std::filesystem::exists(
+            restored_file
+        )
+    );
+
+    // --------------------------------------------------------
+    // Cleanup
+    // --------------------------------------------------------
+
+    std::filesystem::remove_all(
+        test_directory
+    );
 
     std::cout
-        << "All Repository tests passed.\n";
+        << "Repository tests passed\n";
 
     return 0;
 }

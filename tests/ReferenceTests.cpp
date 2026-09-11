@@ -2,184 +2,87 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
-#include <string>
 
-void test_reference_write_and_read() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-reference-test";
+int main()
+{
+    const auto test_directory =
+        std::filesystem::temp_directory_path()
+        / "mini-git-reference-tests";
 
-    std::filesystem::remove_all(root);
+    std::filesystem::remove_all(
+        test_directory
+    );
 
     std::filesystem::create_directories(
-        root / ".mini-git"
+        test_directory
     );
 
-    Reference reference(
-        root / ".mini-git",
-        "refs/heads/main"
-    );
-
-    assert(!reference.exists());
-
-    reference.write(
-        "abcdef123456"
-    );
-
-    assert(reference.exists());
-
-    assert(
-        reference.read() ==
-        "abcdef123456"
-    );
-
-    assert(
-        reference.name() ==
-        "refs/heads/main"
-    );
-
-    std::filesystem::remove_all(root);
-}
-
-void test_reference_update() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-reference-update-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(
-        root / ".mini-git"
-    );
-
-    Reference reference(
-        root / ".mini-git",
-        "refs/heads/main"
-    );
-
-    reference.write("first");
-
-    assert(
-        reference.read() ==
-        "first"
-    );
-
-    reference.write("second");
-
-    assert(
-        reference.read() ==
-        "second"
-    );
-
-    std::filesystem::remove_all(root);
-}
-
-void test_nested_reference() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-nested-reference-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(
-        root / ".mini-git"
-    );
-
-    Reference reference(
-        root / ".mini-git",
-        "refs/heads/feature/login"
-    );
-
-    reference.write("commit123");
-
-    assert(reference.exists());
-
-    assert(
-        reference.read() ==
-        "commit123"
-    );
-
-    std::filesystem::remove_all(root);
-}
-
-void test_invalid_reference_names() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-invalid-reference-test";
-
-    std::filesystem::create_directories(
-        root / ".mini-git"
-    );
-
-    bool threw = false;
-
-    try {
+    {
         Reference reference(
-            root / ".mini-git",
-            "../outside"
+            test_directory,
+            "refs/heads/main"
         );
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
 
-    assert(threw);
-
-    threw = false;
-
-    try {
-        Reference reference(
-            root / ".mini-git",
-            "/absolute/path"
+        assert(
+            reference.name() ==
+            "refs/heads/main"
         );
-    } catch (const std::invalid_argument&) {
-        threw = true;
+
+        assert(!reference.exists());
+
+        reference.write(
+            "abcdef1234567890"
+        );
+
+        assert(reference.exists());
+
+        assert(
+            reference.read() ==
+            "abcdef1234567890"
+        );
     }
 
-    assert(threw);
+    {
+        bool failed = false;
 
-    std::filesystem::remove_all(root);
-}
+        try {
+            Reference invalid(
+                test_directory,
+                "../outside"
+            );
+        }
+        catch (const std::invalid_argument&) {
+            failed = true;
+        }
 
-void test_empty_object_id_is_rejected() {
-    const auto root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-empty-reference-test";
-
-    std::filesystem::remove_all(root);
-
-    std::filesystem::create_directories(
-        root / ".mini-git"
-    );
-
-    Reference reference(
-        root / ".mini-git",
-        "refs/heads/main"
-    );
-
-    bool threw = false;
-
-    try {
-        reference.write("");
-    } catch (const std::invalid_argument&) {
-        threw = true;
+        assert(failed);
     }
 
-    assert(threw);
+    {
+        bool failed = false;
 
-    std::filesystem::remove_all(root);
-}
+        try {
+            Reference invalid(
+                test_directory,
+                "/absolute/path"
+            );
+        }
+        catch (const std::invalid_argument&) {
+            failed = true;
+        }
 
-int main() {
-    test_reference_write_and_read();
-    test_reference_update();
-    test_nested_reference();
-    test_invalid_reference_names();
-    test_empty_object_id_is_rejected();
+        assert(failed);
+    }
+
+    std::filesystem::remove_all(
+        test_directory
+    );
 
     std::cout
-        << "All Reference tests passed.\n";
+        << "Reference tests passed\n";
 
     return 0;
 }

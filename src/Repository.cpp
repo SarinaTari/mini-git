@@ -1,26 +1,27 @@
 #include "Repository.hpp"
 
-#include "Reference.hpp"
+#include "Commit.hpp"
+#include "ObjectDatabase.hpp"
+#include "Tree.hpp"
 
 #include <algorithm>
-#include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
-#include <string>
-#include <vector>
 
 Repository::Repository(
     const std::filesystem::path& root
 )
-    : root_(root),
-      git_dir_(root / ".mini-git") {
+    : root_(std::filesystem::absolute(root)),
+      git_dir_(root_ / ".mini-git")
+{
 }
 
-void Repository::initialize() {
+void Repository::initialize()
+{
     if (std::filesystem::exists(git_dir_)) {
         throw std::runtime_error(
-            "Repository already exists: " +
-            git_dir_.string()
+            "Repository already initialized"
         );
     }
 
@@ -32,117 +33,186 @@ void Repository::initialize() {
         git_dir_ / "refs" / "heads"
     );
 
-    std::ofstream head(
+    std::ofstream head_file(
         git_dir_ / "HEAD"
     );
 
-    if (!head) {
+    if (!head_file) {
         throw std::runtime_error(
             "Failed to create HEAD"
         );
     }
 
-    head << "ref: refs/heads/main\n";
+    head_file << "ref: refs/heads/main\n";
+}
 
-    if (!head) {
+const std::filesystem::path&
+Repository::root() const
+{
+    return root_;
+}
+
+const std::filesystem::path&
+Repository::git_directory() const
+{
+    return git_dir_;
+}
+
+std::string Repository::read_head() const
+{
+    std::ifstream file(
+        git_dir_ / "HEAD"
+    );
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to read HEAD"
+        );
+    }
+
+    std::string line;
+
+    if (!std::getline(file, line)) {
+        throw std::runtime_error(
+            "HEAD is empty"
+        );
+    }
+
+    return line;
+}
+
+void Repository::write_head(
+    const std::string& content
+) const
+{
+    std::ofstream file(
+        git_dir_ / "HEAD"
+    );
+
+    if (!file) {
         throw std::runtime_error(
             "Failed to write HEAD"
         );
     }
+
+    file << content << '\n';
 }
 
-const std::filesystem::path&
-Repository::git_directory() const {
-    return git_dir_;
-}
-
-std::string Repository::head() const {
-    return read_head();
-}
-
-std::string Repository::current_branch() const {
-    const std::string head_value =
+std::string Repository::head_reference() const
+{
+    const std::string head =
         read_head();
 
-    const std::string prefix =
-        "ref: refs/heads/";
-
-    if (
-        head_value.rfind(prefix, 0) != 0
-    ) {
-        return "";
-    }
-
-    const std::string branch =
-        head_value.substr(prefix.size());
-
-    if (
-        branch.empty() ||
-        !is_valid_branch_name(branch)
-    ) {
-        throw std::runtime_error(
-            "Invalid HEAD branch reference"
-        );
-    }
-
-    return branch;
-}
-
-bool Repository::is_detached() const {
-    const std::string head_value =
-        read_head();
-
-    const std::string prefix =
+    constexpr const char* prefix =
         "ref: ";
 
-    return head_value.rfind(prefix, 0) != 0;
-}
-
-std::string Repository::head_commit() const {
-    const std::string head_value =
-        read_head();
-
-    const std::string prefix =
-        "ref: refs/heads/";
-
-    if (
-        head_value.rfind(prefix, 0) != 0
-    ) {
-        return head_value;
-    }
-
-    const std::string branch =
-        head_value.substr(prefix.size());
-
-    if (
-        branch.empty() ||
-        !is_valid_branch_name(branch)
-    ) {
-        throw std::runtime_error(
-            "Invalid HEAD branch reference"
-        );
-    }
-
-    Reference reference(
-        git_dir_,
-        "refs/heads/" + branch
-    );
-
-    if (!reference.exists()) {
+    if (head.rfind(prefix, 0) != 0) {
         return "";
     }
 
-    return reference.read();
+    return head.substr(5);
+}
+
+bool Repository::is_detached_head() const
+{
+    return head_reference().empty();
+}
+
+std::string Repository::current_branch() const
+{
+    const std::string reference =
+        head_reference();
+
+    constexpr const char* prefix =
+        "refs/heads/";
+
+    if (reference.rfind(prefix, 0) != 0) {
+        return "";
+    }
+
+    return reference.substr(
+        std::string(prefix).size()
+    );
+}
+
+std::string Repository::head_commit() const
+{
+    const std::string head =
+        read_head();
+
+    constexpr const char* prefix =
+        "ref: ";
+
+    if (head.rfind(prefix, 0) == 0) {
+        const std::string reference_name =
+            head.substr(5);
+
+        Reference reference(
+            git_dir_,
+            reference_name
+        );
+
+        if (!reference.exists()) {
+            return "";
+        }
+
+        return reference.read();
+    }
+
+    return head;
+}
+
+std::vector<std::string>
+Repository::branches() const
+{
+    std::vector<std::string> result;
+
+    const auto heads_directory =
+        git_dir_ / "refs" / "heads";
+
+    if (!std::filesystem::exists(
+            heads_directory
+        )) {
+        return result;
+    }
+
+    for (
+        const auto& entry :
+        std::filesystem::recursive_directory_iterator(
+            heads_directory
+        )
+    ) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+
+        const auto relative =
+            std::filesystem::relative(
+                entry.path(),
+                heads_directory
+            );
+
+        result.push_back(
+            relative.generic_string()
+        );
+    }
+
+    std::sort(
+        result.begin(),
+        result.end()
+    );
+
+    return result;
 }
 
 void Repository::update_branch(
     const std::string& branch,
     const std::string& commit_id
-) {
-    if (!is_valid_branch_name(branch)) {
+)
+{
+    if (branch.empty()) {
         throw std::invalid_argument(
-            "Invalid branch name: " +
-            branch
+            "Branch name cannot be empty"
         );
     }
 
@@ -154,94 +224,212 @@ void Repository::update_branch(
     reference.write(commit_id);
 }
 
-std::vector<std::string>
-Repository::branches() const {
-    const std::filesystem::path heads_directory =
-        git_dir_ / "refs" / "heads";
-
-    std::vector<std::string> result;
-
-    if (
-        !std::filesystem::exists(heads_directory)
-    ) {
-        return result;
+void Repository::create_branch(
+    const std::string& branch
+)
+{
+    if (branch.empty()) {
+        throw std::invalid_argument(
+            "Branch name cannot be empty"
+        );
     }
 
-    for (
-        const auto& entry :
-        std::filesystem::directory_iterator(
-            heads_directory
-        )
+    const std::string commit =
+        head_commit();
+
+    if (commit.empty()) {
+        throw std::runtime_error(
+            "Cannot create a branch before "
+            "the first commit"
+        );
+    }
+
+    Reference reference(
+        git_dir_,
+        "refs/heads/" + branch
+    );
+
+    if (reference.exists()) {
+        throw std::runtime_error(
+            "Branch already exists: " + branch
+        );
+    }
+
+    reference.write(commit);
+}
+
+void Repository::verify_checkout_is_safe(
+    const std::string& target_commit
+) const
+{
+    /*
+     * Phase 13 intentionally uses a conservative
+     * checkout policy.
+     *
+     * Detailed working-tree change detection will
+     * be expanded in later phases.
+     */
+
+    (void)target_commit;
+}
+
+void Repository::checkout_tree(
+    const std::string& tree_id
+) const
+{
+    checkout_tree_recursive(
+        tree_id,
+        root_
+    );
+}
+
+void Repository::checkout_tree_recursive(
+    const std::string& tree_id,
+    const std::filesystem::path& directory
+) const
+{
+    ObjectDatabase database(
+        git_dir_
+    );
+
+    const std::string data =
+        database.read(tree_id);
+
+    std::istringstream stream(data);
+
+    std::string type;
+    std::string object_id;
+    std::string name;
+
+    while (
+        stream >> type
+        >> object_id
+        >> name
     ) {
-        if (
-            entry.is_regular_file()
-        ) {
-            result.push_back(
-                entry.path().filename().string()
+        const auto target =
+            directory / name;
+
+        if (type == "blob") {
+            const std::string blob_data =
+                database.read(object_id);
+
+            const std::size_t separator =
+                blob_data.find('\0');
+
+            if (
+                separator ==
+                std::string::npos
+            ) {
+                throw std::runtime_error(
+                    "Invalid blob object: " +
+                    object_id
+                );
+            }
+
+            const std::string content =
+                blob_data.substr(
+                    separator + 1
+                );
+
+            std::filesystem::create_directories(
+                target.parent_path()
+            );
+
+            std::ofstream file(
+                target,
+                std::ios::binary
+            );
+
+            if (!file) {
+                throw std::runtime_error(
+                    "Failed to restore file: " +
+                    target.string()
+                );
+            }
+
+            file.write(
+                content.data(),
+                static_cast<std::streamsize>(
+                    content.size()
+                )
+            );
+        }
+        else if (type == "tree") {
+            std::filesystem::create_directories(
+                target
+            );
+
+            checkout_tree_recursive(
+                object_id,
+                target
+            );
+        }
+        else {
+            throw std::runtime_error(
+                "Invalid tree entry type: " +
+                type
             );
         }
     }
-
-    std::sort(
-        result.begin(),
-        result.end()
-    );
-
-    return result;
 }
 
-std::string Repository::read_head() const {
-    const std::filesystem::path head_path =
-        git_dir_ / "HEAD";
-
-    std::ifstream head(head_path);
-
-    if (!head) {
-        throw std::runtime_error(
-            "Failed to read HEAD"
-        );
-    }
-
-    std::string line;
-
-    if (!std::getline(head, line)) {
-        throw std::runtime_error(
-            "HEAD is empty"
-        );
-    }
-
-    if (line.empty()) {
-        throw std::runtime_error(
-            "HEAD is empty"
-        );
-    }
-
-    return line;
-}
-
-bool Repository::is_valid_branch_name(
+void Repository::checkout(
     const std::string& branch
-) {
+)
+{
     if (branch.empty()) {
-        return false;
+        throw std::invalid_argument(
+            "Branch name cannot be empty"
+        );
     }
 
-    const std::filesystem::path branch_path(
-        branch
+    Reference reference(
+        git_dir_,
+        "refs/heads/" + branch
     );
 
-    if (branch_path.is_absolute()) {
-        return false;
+    if (!reference.exists()) {
+        throw std::runtime_error(
+            "Branch does not exist: " +
+            branch
+        );
     }
 
-    for (const auto& component : branch_path) {
-        if (
-            component == ".."
-        ) {
-            return false;
-        }
+    const std::string target_commit =
+        reference.read();
+
+    if (target_commit.empty()) {
+        throw std::runtime_error(
+            "Branch has no commit: " +
+            branch
+        );
     }
 
-    return branch != "." &&
-           branch != "..";
+    if (current_branch() == branch) {
+        return;
+    }
+
+    verify_checkout_is_safe(
+        target_commit
+    );
+
+    ObjectDatabase database(
+        git_dir_
+    );
+
+    const std::string commit_data =
+        database.read(target_commit);
+
+    const Commit commit =
+        Commit::deserialize(
+            commit_data
+        );
+
+    write_head(
+        "ref: refs/heads/" + branch
+    );
+
+    checkout_tree(
+        commit.tree_id()
+    );
 }

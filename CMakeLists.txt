@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(mini-git
+project(
+    mini-git
     VERSION 0.1.0
     LANGUAGES CXX
 )
@@ -9,23 +10,25 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-enable_testing()
-
 find_package(OpenSSL REQUIRED)
-
 
 # ============================================================
 # Main executable
 # ============================================================
 
-add_executable(mini-git
+add_executable(
+    mini-git
+
     src/main.cpp
+
     src/Repository.cpp
     src/Reference.cpp
+
     src/Hash.cpp
     src/Blob.cpp
     src/Tree.cpp
     src/Commit.cpp
+
     src/FileReader.cpp
     src/ObjectDatabase.cpp
     src/TreeBuilder.cpp
@@ -33,32 +36,43 @@ add_executable(mini-git
     src/Status.cpp
 )
 
-target_include_directories(mini-git
+target_include_directories(
+    mini-git
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(mini-git
+target_link_libraries(
+    mini-git
     PRIVATE
         OpenSSL::Crypto
 )
 
-
 # ============================================================
-# Hash tests
+# Testing
 # ============================================================
 
-add_executable(hash-tests
+enable_testing()
+
+# ------------------------------------------------------------
+# Hash Tests
+# ------------------------------------------------------------
+
+add_executable(
+    hash-tests
+
     tests/HashTests.cpp
     src/Hash.cpp
 )
 
-target_include_directories(hash-tests
+target_include_directories(
+    hash-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(hash-tests
+target_link_libraries(
+    hash-tests
     PRIVATE
         OpenSSL::Crypto
 )
@@ -68,27 +82,31 @@ add_test(
     COMMAND hash-tests
 )
 
+# ------------------------------------------------------------
+# Object Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Object tests
-# ============================================================
+add_executable(
+    object-tests
 
-add_executable(object-tests
     tests/ObjectTests.cpp
-    src/Hash.cpp
+
     src/Blob.cpp
+    src/ObjectDatabase.cpp
+    src/Hash.cpp
+    src/FileReader.cpp
     src/Tree.cpp
     src/Commit.cpp
-    src/FileReader.cpp
-    src/ObjectDatabase.cpp
 )
 
-target_include_directories(object-tests
+target_include_directories(
+    object-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(object-tests
+target_link_libraries(
+    object-tests
     PRIVATE
         OpenSSL::Crypto
 )
@@ -98,19 +116,21 @@ add_test(
     COMMAND object-tests
 )
 
+# ------------------------------------------------------------
+# FileReader Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# FileReader tests
-# ============================================================
+add_executable(
+    file-reader-tests
 
-add_executable(file-reader-tests
     tests/FileReaderTests.cpp
     src/FileReader.cpp
 )
 
-target_include_directories(file-reader-tests
+target_include_directories(
+    file-reader-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
 add_test(
@@ -118,20 +138,23 @@ add_test(
     COMMAND file-reader-tests
 )
 
+# ------------------------------------------------------------
+# Blob Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Blob tests
-# ============================================================
+add_executable(
+    blob-tests
 
-add_executable(blob-tests
     tests/BlobTests.cpp
+
     src/Blob.cpp
     src/FileReader.cpp
 )
 
-target_include_directories(blob-tests
+target_include_directories(
+    blob-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
 add_test(
@@ -139,28 +162,32 @@ add_test(
     COMMAND blob-tests
 )
 
+# ------------------------------------------------------------
+# TreeBuilder Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# TreeBuilder tests
-# ============================================================
+add_executable(
+    tree-builder-tests
 
-add_executable(tree-builder-tests
     tests/TreeBuilderTests.cpp
+
     src/TreeBuilder.cpp
     src/Tree.cpp
     src/Blob.cpp
     src/FileReader.cpp
-    src/ObjectDatabase.cpp
     src/Hash.cpp
+    src/ObjectDatabase.cpp
     src/Index.cpp
 )
 
-target_include_directories(tree-builder-tests
+target_include_directories(
+    tree-builder-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(tree-builder-tests
+target_link_libraries(
+    tree-builder-tests
     PRIVATE
         OpenSSL::Crypto
 )
@@ -170,19 +197,21 @@ add_test(
     COMMAND tree-builder-tests
 )
 
+# ------------------------------------------------------------
+# Index Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Index tests
-# ============================================================
+add_executable(
+    index-tests
 
-add_executable(index-tests
     tests/IndexTests.cpp
     src/Index.cpp
 )
 
-target_include_directories(index-tests
+target_include_directories(
+    index-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
 add_test(
@@ -190,13 +219,15 @@ add_test(
     COMMAND index-tests
 )
 
+# ------------------------------------------------------------
+# Status Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Status tests
-# ============================================================
+add_executable(
+    status-tests
 
-add_executable(status-tests
     tests/StatusTests.cpp
+
     src/Status.cpp
     src/Index.cpp
     src/Blob.cpp
@@ -204,12 +235,14 @@ add_executable(status-tests
     src/Hash.cpp
 )
 
-target_include_directories(status-tests
+target_include_directories(
+    status-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(status-tests
+target_link_libraries(
+    status-tests
     PRIVATE
         OpenSSL::Crypto
 )
@@ -219,46 +252,37 @@ add_test(
     COMMAND status-tests
 )
 
+# ------------------------------------------------------------
+# Log Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Commit tests
-# ============================================================
+# ------------------------------------------------------------
+# Log Tests
+# ------------------------------------------------------------
 
-add_executable(commit-tests
-    tests/CommitTests.cpp
-    src/Commit.cpp
-)
+add_executable(
+    log-tests
 
-target_include_directories(commit-tests
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-)
-
-add_test(
-    NAME CommitTests
-    COMMAND commit-tests
-)
-
-
-# ============================================================
-# Log tests
-# ============================================================
-
-add_executable(log-tests
     tests/LogTests.cpp
+
     src/Commit.cpp
-    src/ObjectDatabase.cpp
-    src/Hash.cpp
     src/Repository.cpp
     src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
 )
 
-target_include_directories(log-tests
+target_include_directories(
+    log-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
 )
 
-target_link_libraries(log-tests
+target_link_libraries(
+    log-tests
     PRIVATE
         OpenSSL::Crypto
 )
@@ -268,20 +292,83 @@ add_test(
     COMMAND log-tests
 )
 
+# ------------------------------------------------------------
+# Commit Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Repository tests
-# ============================================================
+add_executable(
+    commit-tests
 
-add_executable(repository-tests
-    tests/RepositoryTests.cpp
-    src/Repository.cpp
+    tests/CommitTests.cpp
+
+    src/Commit.cpp
+)
+
+target_include_directories(
+    commit-tests
+    PRIVATE
+        include
+)
+
+add_test(
+    NAME CommitTests
+    COMMAND commit-tests
+)
+
+# ------------------------------------------------------------
+# Reference Tests
+# ------------------------------------------------------------
+
+add_executable(
+    reference-tests
+
+    tests/ReferenceTests.cpp
+
     src/Reference.cpp
 )
 
-target_include_directories(repository-tests
+target_include_directories(
+    reference-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
+)
+
+add_test(
+    NAME ReferenceTests
+    COMMAND reference-tests
+)
+
+# ------------------------------------------------------------
+# Repository Tests
+# ------------------------------------------------------------
+
+add_executable(
+    repository-tests
+
+    tests/RepositoryTests.cpp
+
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    repository-tests
+    PRIVATE
+        include
+)
+
+target_link_libraries(
+    repository-tests
+    PRIVATE
+        OpenSSL::Crypto
 )
 
 add_test(
@@ -289,22 +376,74 @@ add_test(
     COMMAND repository-tests
 )
 
+# ------------------------------------------------------------
+# Branch Tests
+# ------------------------------------------------------------
 
-# ============================================================
-# Reference tests
-# ============================================================
+add_executable(
+    branch-tests
 
-add_executable(reference-tests
-    tests/ReferenceTests.cpp
+    tests/BranchTests.cpp
+
+    src/Repository.cpp
     src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
 )
 
-target_include_directories(reference-tests
+target_include_directories(
+    branch-tests
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+        include
+)
+
+target_link_libraries(
+    branch-tests
+    PRIVATE
+        OpenSSL::Crypto
 )
 
 add_test(
-    NAME ReferenceTests
-    COMMAND reference-tests
+    NAME BranchTests
+    COMMAND branch-tests
+)
+
+# ------------------------------------------------------------
+# Checkout Tests
+# ------------------------------------------------------------
+
+add_executable(
+    checkout-tests
+
+    tests/CheckoutTests.cpp
+
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    checkout-tests
+    PRIVATE
+        include
+)
+
+target_link_libraries(
+    checkout-tests
+    PRIVATE
+        OpenSSL::Crypto
+)
+
+add_test(
+    NAME CheckoutTests
+    COMMAND checkout-tests
 )

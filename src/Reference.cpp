@@ -1,128 +1,117 @@
 #include "Reference.hpp"
 
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
-#include <string>
-#include <utility>
 
 Reference::Reference(
-    const std::filesystem::path& git_dir,
+    const std::filesystem::path& git_directory,
     std::string name
 )
-    : git_dir_(git_dir),
-      name_(std::move(name)) {
-
-    validate_name();
+    : git_directory_(git_directory),
+      name_(std::move(name))
+{
+    validate_name(name_);
 }
 
-bool Reference::exists() const {
-    return std::filesystem::exists(path());
+const std::string& Reference::name() const
+{
+    return name_;
 }
 
-std::string Reference::read() const {
-    const std::filesystem::path reference_path =
-        path();
+std::filesystem::path Reference::path() const
+{
+    return git_directory_ / name_;
+}
 
-    if (!std::filesystem::exists(reference_path)) {
+bool Reference::exists() const
+{
+    return std::filesystem::is_regular_file(path());
+}
+
+std::string Reference::read() const
+{
+    if (!exists()) {
         throw std::runtime_error(
-            "Reference does not exist: " +
-            name_
+            "Reference does not exist: " + name_
         );
     }
 
-    std::ifstream file(reference_path);
+    std::ifstream file(path());
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to read reference: " +
-            name_
+            "Failed to open reference: " + name_
         );
     }
 
-    std::string object_id;
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
 
-    if (!std::getline(file, object_id)) {
-        return "";
+    std::string value = buffer.str();
+
+    while (!value.empty() &&
+           (value.back() == '\n' || value.back() == '\r')) {
+        value.pop_back();
     }
 
-    return object_id;
+    return value;
 }
 
-void Reference::write(
-    const std::string& object_id
-) const {
+void Reference::write(const std::string& object_id) const
+{
     if (object_id.empty()) {
         throw std::invalid_argument(
             "Reference cannot point to an empty object ID"
         );
     }
 
-    const std::filesystem::path reference_path =
-        path();
+    const auto reference_path = path();
 
     std::filesystem::create_directories(
         reference_path.parent_path()
     );
 
-    std::ofstream file(
-        reference_path,
-        std::ios::trunc
-    );
+    std::ofstream file(reference_path);
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to write reference: " +
-            name_
+            "Failed to write reference: " + name_
         );
     }
 
     file << object_id << '\n';
-
-    if (!file) {
-        throw std::runtime_error(
-            "Failed to write reference: " +
-            name_
-        );
-    }
 }
 
-const std::string& Reference::name() const {
-    return name_;
-}
-
-std::filesystem::path Reference::path() const {
-    return git_dir_ / name_;
-}
-
-void Reference::validate_name() const {
-    if (name_.empty()) {
+void Reference::validate_name(const std::string& name)
+{
+    if (name.empty()) {
         throw std::invalid_argument(
             "Reference name cannot be empty"
         );
     }
 
-    const std::filesystem::path reference_path(name_);
+    std::filesystem::path path(name);
 
-    if (reference_path.is_absolute()) {
+    if (path.is_absolute()) {
         throw std::invalid_argument(
             "Reference name must be relative"
         );
     }
 
-    for (const auto& component : reference_path) {
-        if (component == "..") {
+    for (const auto& component : path) {
+        const std::string part = component.string();
+
+        if (part.empty() || part == ".") {
             throw std::invalid_argument(
-                "Reference name cannot contain '..'"
+                "Invalid reference name: " + name
             );
         }
-    }
 
-    if (
-        name_ == "." ||
-        name_ == ".."
-    ) {
-        throw std::invalid_argument(
-            "Invalid reference name"
-        );
+        if (part == "..") {
+            throw std::invalid_argument(
+                "Reference name cannot contain '..': " + name
+            );
+        }
     }
 }
