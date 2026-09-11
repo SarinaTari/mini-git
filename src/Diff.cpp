@@ -142,7 +142,7 @@ Diff::index_snapshot() const {
     Snapshot snapshot;
 
     Index index(
-        repository_.git_directory()
+        repository_.git_directory() / "index"
     );
 
     index.load();

@@ -1,6 +1,7 @@
 #include "Blob.hpp"
 #include "Commit.hpp"
 #include "Diff.hpp"
+#include "Index.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
@@ -132,8 +133,23 @@ int main()
         std::string output =
             diff.working_tree_vs_index();
 
+        /*
+         * Index is empty, while the working tree
+         * contains hello.txt.
+         *
+         * Therefore the file appears as an addition.
+         */
+
         assert(
-            output.empty()
+            output.find(
+                "+hello"
+            ) != std::string::npos
+        );
+
+        assert(
+            output.find(
+                "+world"
+            ) != std::string::npos
         );
     }
 
@@ -187,7 +203,7 @@ int main()
         database.store(staged_blob);
 
     Index index(
-        repository.git_directory()
+        repository.git_directory() / "index"
     );
 
     index.load();

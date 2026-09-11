@@ -21,12 +21,12 @@ public:
 
     std::string commit_vs_working_tree(
         const std::string& commit_id
-    );
+    ) const;
 
     std::string commit_vs_commit(
         const std::string& first_commit,
         const std::string& second_commit
-    );
+    ) const;
 
 private:
     using Snapshot =
