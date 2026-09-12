@@ -34,6 +34,10 @@ void Repository::initialize()
         git_dir_ / "refs" / "heads"
     );
 
+    std::filesystem::create_directories(
+        git_dir_ / "refs" / "tags"
+    );
+
     std::ofstream head_file(
         git_dir_ / "HEAD"
     );
@@ -204,6 +208,163 @@ Repository::branches() const
     );
 
     return result;
+}
+
+std::vector<std::string>
+Repository::tags() const
+{
+    std::vector<std::string> result;
+
+    const auto tags_directory =
+        git_dir_ / "refs" / "tags";
+
+    if (!std::filesystem::exists(tags_directory)) {
+        return result;
+    }
+
+    for (
+        const auto& entry :
+        std::filesystem::recursive_directory_iterator(
+            tags_directory
+        )
+    ) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+
+        const auto relative =
+            std::filesystem::relative(
+                entry.path(),
+                tags_directory
+            );
+
+        result.push_back(
+            relative.generic_string()
+        );
+    }
+
+    std::sort(
+        result.begin(),
+        result.end()
+    );
+
+    return result;
+}
+
+bool Repository::tag_exists(
+    const std::string& tag
+) const
+{
+    Reference reference(
+        git_dir_,
+        "refs/tags/" + tag
+    );
+
+    return reference.exists();
+}
+
+std::string Repository::tag_commit(
+    const std::string& tag
+) const
+{
+    Reference reference(
+        git_dir_,
+        "refs/tags/" + tag
+    );
+
+    if (!reference.exists()) {
+        throw std::runtime_error(
+            "Tag does not exist: " + tag
+        );
+    }
+
+    return reference.read();
+}
+
+void Repository::create_tag(
+    const std::string& tag,
+    const std::string& commit_id
+)
+{
+    if (tag.empty()) {
+        throw std::invalid_argument(
+            "Tag name cannot be empty"
+        );
+    }
+
+    Reference reference(
+        git_dir_,
+        "refs/tags/" + tag
+    );
+
+    if (reference.exists()) {
+        throw std::runtime_error(
+            "Tag already exists: " + tag
+        );
+    }
+
+    const std::string target =
+        commit_id.empty()
+            ? head_commit()
+            : commit_id;
+
+    if (target.empty()) {
+        throw std::runtime_error(
+            "Cannot create a tag without a commit"
+        );
+    }
+
+    ObjectDatabase database(
+        git_dir_
+    );
+
+    if (!database.exists(target)) {
+        throw std::runtime_error(
+            "Commit does not exist: " + target
+        );
+    }
+
+    const std::string data =
+        database.read(target);
+
+    try {
+        (void)Commit::deserialize(data);
+    }
+    catch (const std::exception&) {
+        throw std::runtime_error(
+            "Tag target is not a valid commit: " + target
+        );
+    }
+
+    reference.write(target);
+}
+
+void Repository::delete_tag(
+    const std::string& tag
+)
+{
+    if (tag.empty()) {
+        throw std::invalid_argument(
+            "Tag name cannot be empty"
+        );
+    }
+
+    Reference reference(
+        git_dir_,
+        "refs/tags/" + tag
+    );
+
+    if (!reference.exists()) {
+        throw std::runtime_error(
+            "Tag does not exist: " + tag
+        );
+    }
+
+    if (!std::filesystem::remove(reference.path())) {
+        throw std::runtime_error(
+            "Failed to delete tag: " + tag
+        );
+    }
 }
 
 void Repository::update_branch(

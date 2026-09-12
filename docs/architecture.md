@@ -3979,3 +3979,185 @@ restore original state
 ```
 
 This forms the architectural foundation for more advanced version-control features in future phases.
+
+
+# Phase 17 — Tags
+
+Phase 17 extends the reference architecture with immutable commit tags.
+
+A tag is a named reference to a specific commit. Unlike a branch, it does not move automatically when new commits are created.
+
+```text
+.mini-git/
+└── refs/
+    ├── heads/
+    │   ├── main
+    │   └── feature
+    │
+    └── tags/
+        ├── v1.0
+        └── v1.1
+```
+
+Each tag file contains the commit ID it references. The commit remains in the object database independently of the tag.
+
+## Tag Data Flow
+
+```text
+mini-git tag v1.0
+        │
+        ▼
+    Repository
+        │
+        ▼
+    resolve HEAD
+        │
+        ▼
+  verify Commit object
+        │
+        ▼
+ Reference("refs/tags/v1.0")
+        │
+        ▼
+ .mini-git/refs/tags/v1.0
+        │
+        ▼
+      Commit ID
+```
+
+Creating a tag at an explicit commit follows the same path, except the supplied commit ID is validated instead of resolving `HEAD`.
+
+## Branches and Tags
+
+Branches and tags both use references, but they represent different semantics:
+
+```text
+Branch:
+
+main ───────────────► Commit D
+                       │
+                       │ new commit
+                       ▼
+main ───────────────► Commit E
+
+
+Tag:
+
+v1.0 ───────────────► Commit D
+                       │
+                       │ new commit
+                       ▼
+v1.0 ───────────────► Commit D
+```
+
+The branch reference moves because a new commit updates it. The tag remains fixed at the commit it originally identified.
+
+## Tag Validation
+
+Before creating a tag, Mini Git verifies:
+
+1. the tag name is non-empty
+2. the tag reference does not already exist
+3. the target commit exists in the object database
+4. the target object can be deserialized as a `Commit`
+5. the tag name cannot escape the `refs/tags` directory
+
+The existing `Reference` validation provides the path-safety boundary.
+
+## Tag Deletion
+
+Deleting a tag removes only its reference file:
+
+```text
+refs/tags/v1.0
+        │
+        ▼
+     delete
+        │
+        ▼
+ reference removed
+        │
+        ▼
+ commit object remains
+```
+
+This demonstrates an important property of content-addressable storage: names and references can change without mutating or deleting the underlying immutable object.
+
+## Tag Architecture
+
+The Phase 17 architecture is:
+
+```text
+                         CLI
+                          │
+                          ▼
+                      Repository
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+             ▼                         ▼
+        refs/heads/                refs/tags/
+             │                         │
+             ▼                         ▼
+          Branches                    Tags
+             │                         │
+             └────────────┬────────────┘
+                          │
+                          ▼
+                       Commit ID
+                          │
+                          ▼
+                   Object Database
+                          │
+                          ▼
+                        Commit
+```
+
+This keeps branch and tag references conceptually consistent and avoids introducing a second persistence mechanism.
+
+# Phase 17 Result
+
+Mini Git can now give stable human-readable names to important commits while preserving the existing immutable object model.
+
+The repository progression is now:
+
+```text
+Repository
+   │
+   ▼
+Objects
+   │
+   ▼
+Index
+   │
+   ▼
+Commits
+   │
+   ▼
+History
+   │
+   ├───────────────┐
+   ▼               ▼
+Branches          Tags
+   │               │
+   ▼               ▼
+Checkout        Stable Names
+   │               │
+   └───────┬───────┘
+           ▼
+          Diff
+           │
+           ▼
+         Merge
+           │
+           ▼
+ Persistent Merge State
+           │
+           ▼
+   Conflict Resolution
+           │
+           ▼
+Future Integrity / Maintenance
+```
+
+Phase 17 therefore reinforces the central architectural idea of Mini Git: **references provide names for immutable objects, while the objects themselves remain independent of those names.**

@@ -41,7 +41,12 @@ void print_usage()
         << "  mini-git diff\n"
         << "  mini-git diff --cached\n"
         << "  mini-git diff <commit>\n"
-        << "  mini-git diff <commit> <commit>\n";
+        << "  mini-git diff <commit> <commit>\n"
+        << "  mini-git tag\n"
+        << "  mini-git tag <name>\n"
+        << "  mini-git tag <name> <commit>\n"
+        << "  mini-git tag --show <name>\n"
+        << "  mini-git tag --delete <name>\n";
 }
 
 Repository open_repository()
@@ -184,6 +189,119 @@ void command_diff(
         "  mini-git diff --cached\n"
         "  mini-git diff <commit>\n"
         "  mini-git diff <commit> <commit>"
+    );
+}
+
+void command_tag(
+    Repository& repository,
+    int argc,
+    char* argv[]
+)
+{
+    if (argc == 2) {
+        const auto tags = repository.tags();
+
+        if (tags.empty()) {
+            std::cout
+                << "No tags yet.\n";
+
+            return;
+        }
+
+        for (const auto& tag : tags) {
+            std::cout
+                << tag
+                << '\n';
+        }
+
+        return;
+    }
+
+    if (argc == 4 && std::string(argv[2]) == "--show") {
+        const std::string tag = argv[3];
+        const std::string commit_id =
+            repository.tag_commit(tag);
+
+        ObjectDatabase database(
+            repository.git_directory()
+        );
+
+        const Commit commit =
+            Commit::deserialize(
+                database.read(commit_id)
+            );
+
+        std::cout
+            << "Tag: "
+            << tag
+            << '\n'
+            << "Commit: "
+            << commit_id
+            << '\n'
+            << "Author: "
+            << commit.author()
+            << '\n'
+            << "Message: "
+            << commit.message()
+            << '\n';
+
+        return;
+    }
+
+    if (argc == 4 && std::string(argv[2]) == "--delete") {
+        const std::string tag = argv[3];
+
+        repository.delete_tag(tag);
+
+        std::cout
+            << "Deleted tag '"
+            << tag
+            << "'.\n";
+
+        return;
+    }
+
+    if (argc == 3) {
+        const std::string tag = argv[2];
+
+        repository.create_tag(tag);
+
+        std::cout
+            << "Created tag '"
+            << tag
+            << "' at "
+            << repository.tag_commit(tag)
+            << "\n";
+
+        return;
+    }
+
+    if (argc == 4) {
+        const std::string tag = argv[2];
+        const std::string commit_id = argv[3];
+
+        repository.create_tag(
+            tag,
+            commit_id
+        );
+
+        std::cout
+            << "Created tag '"
+            << tag
+            << "' at "
+            << commit_id
+            << "\n";
+
+        return;
+    }
+
+    throw std::runtime_error(
+        "Usage:\n"
+        "  mini-git tag\n"
+        "  mini-git tag <name>\n"
+        "  mini-git tag <name> <commit>\n"
+        "  mini-git tag --show <name>\n"
+        "  mini-git tag --delete <name>"
     );
 }
 
@@ -336,6 +454,19 @@ int main(
                 open_repository();
 
             command_merge(
+                repository,
+                argc,
+                argv
+            );
+
+            return 0;
+        }
+
+        if (command == "tag") {
+            Repository repository =
+                open_repository();
+
+            command_tag(
                 repository,
                 argc,
                 argv

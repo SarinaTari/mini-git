@@ -471,3 +471,39 @@ add_test(
     NAME MergeStateTests
     COMMAND merge-state-tests
 )
+
+# ============================================================
+# Phase 17 - Tag Tests
+# ============================================================
+
+add_executable(
+    tag-tests
+    tests/TagTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    tag-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    tag-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME TagTests
+    COMMAND tag-tests
+)

@@ -31,6 +31,7 @@ The project progressively implements:
 - Conflict resolution
 - Merge continuation
 - Merge abort
+- Tags
 - Repository integrity
 - Educational repository introspection
 
@@ -257,6 +258,52 @@ Mini Git is therefore both a practical version-control implementation and a way 
 
 # Current Status
 
+## Phase 17 — Tags
+
+Mini Git has completed the repository, object, staging, commit, history, reference, branch, checkout, diff, merge, and persistent merge-state layers.
+
+Phase 17 adds lightweight commit tags using the existing reference architecture. Tags are immutable names that point to specific commit objects.
+
+### Implemented in Phase 17
+
+* Tag reference storage under `.mini-git/refs/tags/`
+* Tag creation at `HEAD`
+* Tag creation at a specific commit
+* Tag listing
+* Tag inspection
+* Tag deletion
+* Duplicate-tag protection
+* Invalid-commit protection
+* Commit-object validation for tag targets
+* Tag-name traversal protection through the existing `Reference` validation
+* Automated Tag tests
+
+### Tag Commands
+
+```bash
+mini-git tag
+mini-git tag <name>
+mini-git tag <name> <commit>
+mini-git tag --show <name>
+mini-git tag --delete <name>
+```
+
+Tags are stored as references rather than objects:
+
+```text
+.mini-git/
+└── refs/
+    ├── heads/
+    │   ├── main
+    │   └── feature
+    │
+    └── tags/
+        ├── v1.0
+        └── v1.1
+```
+
+A tag file contains the commit ID it identifies. Deleting a tag therefore does not delete the commit object from the object database.
+
 ## Phase 16 — Advanced Merge State & Conflict Resolution
 
 Mini Git has completed the foundational repository, object, staging, commit, history, reference, branch, checkout, and diff layers.
@@ -358,6 +405,15 @@ The user can then:
 * Protection against checkout during an active merge
 * Automated Merge tests
 * Automated Merge State tests
+* Tag reference storage
+* Tag creation at `HEAD`
+* Tag creation at a specific commit
+* Tag listing
+* Tag inspection
+* Tag deletion
+* Tag target validation
+* Tag-name safety validation
+* Automated Tag tests
 
 ---
 
@@ -5088,10 +5144,10 @@ That is the central idea of Mini Git.
 
 | Item              | Status                                                             |
 | ----------------- | ------------------------------------------------------------------ |
-| Current Phase     | **16 / 20**                                                        |
-| Current Subsystem | **Advanced Merge State & Conflict Resolution**                     |
-| Previous Phase    | Merge & Conflict Detection                                         |
-| Next Phase        | Tags                                                               |
+| Current Phase     | **17 / 20**                                                        |
+| Current Subsystem | **Tags**                                                           |
+| Previous Phase    | Advanced Merge State & Conflict Resolution                         |
+| Next Phase        | Repository Integrity & Maintenance                                 |
 | Language          | C++20                                                              |
 | Build System      | CMake                                                              |
 | Hashing           | SHA-256 / OpenSSL EVP                                              |

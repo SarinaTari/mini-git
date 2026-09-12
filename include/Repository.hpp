@@ -29,6 +29,19 @@ public:
 
     std::vector<std::string> branches() const;
 
+    std::vector<std::string> tags() const;
+
+    bool tag_exists(const std::string& tag) const;
+
+    std::string tag_commit(const std::string& tag) const;
+
+    void create_tag(
+        const std::string& tag,
+        const std::string& commit_id = ""
+    );
+
+    void delete_tag(const std::string& tag);
+
     void update_branch(
         const std::string& branch,
         const std::string& commit_id
