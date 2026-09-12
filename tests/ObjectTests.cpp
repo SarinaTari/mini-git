@@ -1,24 +1,28 @@
 #include "Blob.hpp"
 #include "Commit.hpp"
-#include "Tree.hpp"
 #include "ObjectDatabase.hpp"
+#include "Tree.hpp"
 
 #include <cassert>
+#include <filesystem>
 #include <iostream>
 #include <string>
-#include <filesystem>
 
-void test_blob() {
+void test_blob()
+{
     Blob blob("Hello Mini Git");
 
     const std::string expected =
         std::string("blob 14\0", 8)
         + "Hello Mini Git";
 
-    assert(blob.serialize() == expected);
+    assert(
+        blob.serialize() == expected
+    );
 }
 
-void test_tree() {
+void test_tree()
+{
     Tree tree;
 
     tree.add_entry({
@@ -33,7 +37,8 @@ void test_tree() {
         true
     });
 
-    const std::string result = tree.serialize();
+    const std::string result =
+        tree.serialize();
 
     assert(
         result ==
@@ -42,7 +47,8 @@ void test_tree() {
     );
 }
 
-void test_commit() {
+void test_commit()
+{
     Commit commit(
         "tree123",
         "parent456",
@@ -50,7 +56,8 @@ void test_commit() {
         "Initial commit"
     );
 
-    const std::string result = commit.serialize();
+    const std::string result =
+        commit.serialize();
 
     assert(
         result ==
@@ -62,7 +69,8 @@ void test_commit() {
     );
 }
 
-void test_initial_commit() {
+void test_initial_commit()
+{
     Commit commit(
         "tree123",
         "",
@@ -70,7 +78,8 @@ void test_initial_commit() {
         "Initial commit"
     );
 
-    const std::string result = commit.serialize();
+    const std::string result =
+        commit.serialize();
 
     assert(
         result ==
@@ -81,20 +90,20 @@ void test_initial_commit() {
     );
 }
 
-void test_object_database() {
-    const std::filesystem::path test_root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-object-db-test";
+void test_object_database()
+{
+    const auto test_root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-object-db-test";
 
     std::filesystem::remove_all(test_root);
 
-    const std::filesystem::path git_dir =
+    const auto git_dir =
         test_root / ".mini-git";
 
-    const std::filesystem::path objects_dir =
-        git_dir / "objects";
-
-    std::filesystem::create_directories(objects_dir);
+    std::filesystem::create_directories(
+        git_dir / "objects"
+    );
 
     ObjectDatabase database(git_dir);
 
@@ -108,7 +117,9 @@ void test_object_database() {
     const std::string stored_data =
         database.read(object_id);
 
-    assert(stored_data == blob.serialize());
+    assert(
+        stored_data == blob.serialize()
+    );
 
     Blob second_blob("Hello Mini Git");
 
@@ -120,7 +131,8 @@ void test_object_database() {
     std::filesystem::remove_all(test_root);
 }
 
-void test_tree_deterministic_order() {
+void test_tree_deterministic_order()
+{
     Tree first;
 
     first.add_entry({
@@ -161,7 +173,10 @@ void test_tree_deterministic_order() {
         false
     });
 
-    assert(first.serialize() == second.serialize());
+    assert(
+        first.serialize() ==
+        second.serialize()
+    );
 
     assert(
         first.serialize() ==
@@ -171,7 +186,8 @@ void test_tree_deterministic_order() {
     );
 }
 
-int main() {
+int main()
+{
     test_blob();
     test_tree();
     test_tree_deterministic_order();
@@ -179,7 +195,8 @@ int main() {
     test_initial_commit();
     test_object_database();
 
-    std::cout << "All Object tests passed.\n";
+    std::cout
+        << "All Object tests passed.\n";
 
     return 0;
 }

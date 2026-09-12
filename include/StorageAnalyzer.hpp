@@ -4,10 +4,9 @@
 
 class Repository;
 
-class StorageAnalyzer {
-
+class StorageAnalyzer
+{
 public:
-
     explicit StorageAnalyzer(
         const Repository& repository
     );
@@ -15,7 +14,5 @@ public:
     std::string render() const;
 
 private:
-
     const Repository& repository_;
-
 };

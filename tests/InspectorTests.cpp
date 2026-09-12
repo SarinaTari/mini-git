@@ -7,9 +7,11 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-inspector-tests";
@@ -23,22 +25,23 @@ int main() {
     ObjectDatabase database(git_dir);
 
     Blob blob("Hello Inspector\n");
-    const auto blob_id =
+
+    const std::string blob_id =
         database.store(blob);
 
     Inspector inspector(git_dir);
 
-    const auto blob_output =
+    const std::string blob_output =
         inspector.inspect(blob_id);
 
     assert(
-        blob_output.find("Type: blob")
-        != std::string::npos
+        blob_output.find("Type: blob") !=
+        std::string::npos
     );
 
     assert(
-        blob_output.find("Hello Inspector")
-        != std::string::npos
+        blob_output.find("Hello Inspector") !=
+        std::string::npos
     );
 
     Tree tree;
@@ -49,20 +52,20 @@ int main() {
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
-    const auto tree_output =
+    const std::string tree_output =
         inspector.inspect(tree_id);
 
     assert(
-        tree_output.find("Type: tree")
-        != std::string::npos
+        tree_output.find("Type: tree") !=
+        std::string::npos
     );
 
     assert(
-        tree_output.find("hello.txt")
-        != std::string::npos
+        tree_output.find("hello.txt") !=
+        std::string::npos
     );
 
     Commit commit(
@@ -72,21 +75,45 @@ int main() {
         "Initial commit"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
-    const auto commit_output =
+    const std::string commit_output =
         inspector.inspect(commit_id);
 
     assert(
-        commit_output.find("Type: commit")
-        != std::string::npos
+        commit_output.find("Type: commit") !=
+        std::string::npos
     );
 
     assert(
-        commit_output.find("Initial commit")
-        != std::string::npos
+        commit_output.find("Initial commit") !=
+        std::string::npos
     );
+
+    bool failed = false;
+
+    try {
+        (void)inspector.inspect("");
+    }
+    catch (const std::invalid_argument&) {
+        failed = true;
+    }
+
+    assert(failed);
+
+    failed = false;
+
+    try {
+        (void)inspector.inspect(
+            "does-not-exist"
+        );
+    }
+    catch (const std::runtime_error&) {
+        failed = true;
+    }
+
+    assert(failed);
 
     std::filesystem::remove_all(root);
 

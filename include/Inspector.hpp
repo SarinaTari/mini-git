@@ -3,10 +3,9 @@
 #include <filesystem>
 #include <string>
 
-class Inspector {
-
+class Inspector
+{
 public:
-
     explicit Inspector(
         const std::filesystem::path& git_directory
     );
@@ -16,7 +15,5 @@ public:
     ) const;
 
 private:
-
     std::filesystem::path git_directory_;
-
 };

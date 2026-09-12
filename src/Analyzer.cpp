@@ -2,60 +2,59 @@
 
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "Reference.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
 
 #include <algorithm>
-#include <filesystem>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
-namespace {
+namespace
+{
 
-struct CommitInfo {
-
+struct CommitInfo
+{
     std::string id;
-
     std::string message;
-
     std::string author;
-
     std::vector<std::string> parents;
-
 };
 
 void collect_commits(
     ObjectDatabase& database,
     const std::string& start,
     std::map<std::string, CommitInfo>& commits
-) {
-    if (start.empty()) {
+)
+{
+    if (start.empty())
+    {
         return;
     }
 
     std::vector<std::string> pending;
     pending.push_back(start);
 
-    while (!pending.empty()) {
-
-        const std::string id =
-            pending.back();
-
+    while (!pending.empty())
+    {
+        const std::string id = pending.back();
         pending.pop_back();
 
-        if (id.empty()) {
+        if (id.empty())
+        {
             continue;
         }
 
-        if (commits.find(id) != commits.end()) {
+        if (commits.find(id) != commits.end())
+        {
             continue;
         }
 
-        if (!database.exists(id)) {
+        if (!database.exists(id))
+        {
             continue;
         }
 
@@ -74,63 +73,27 @@ void collect_commits(
             }
         );
 
-        for (const auto& parent :
-             commit.parent_ids()) {
-
-            pending.push_back(parent);
+        for (const auto& parent : commit.parent_ids())
+        {
+            if (!parent.empty())
+            {
+                pending.push_back(parent);
+            }
         }
     }
 }
 
-void collect_tree_files(
-    ObjectDatabase& database,
-    const std::string& tree_id,
-    const std::string& prefix,
-    std::set<std::string>& files
-) {
-    if (tree_id.empty()) {
-        return;
-    }
-
-    const Tree tree =
-        Tree::deserialize(
-            database.read(tree_id)
-        );
-
-    for (const auto& entry :
-         tree.entries()) {
-
-        const std::string path =
-            prefix.empty()
-                ? entry.name
-                : prefix + "/" + entry.name;
-
-        if (entry.is_tree) {
-
-            collect_tree_files(
-                database,
-                entry.object_id,
-                path,
-                files
-            );
-
-        }
-        else {
-            files.insert(path);
-        }
-    }
-}
-
-}
+} // namespace
 
 Analyzer::Analyzer(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string Analyzer::render() const {
-
+std::string Analyzer::render() const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -140,15 +103,15 @@ std::string Analyzer::render() const {
     const auto branches =
         repository_.branches();
 
-    for (const auto& branch :
-         branches) {
-
+    for (const auto& branch : branches)
+    {
         Reference reference(
             repository_.git_directory(),
             "refs/heads/" + branch
         );
 
-        if (!reference.exists()) {
+        if (!reference.exists())
+        {
             continue;
         }
 
@@ -159,15 +122,18 @@ std::string Analyzer::render() const {
         );
     }
 
-    for (const auto& tag :
-         repository_.tags()) {
+    const auto tags =
+        repository_.tags();
 
+    for (const auto& tag : tags)
+    {
         Reference reference(
             repository_.git_directory(),
             "refs/tags/" + tag
         );
 
-        if (!reference.exists()) {
+        if (!reference.exists())
+        {
             continue;
         }
 
@@ -189,19 +155,18 @@ std::string Analyzer::render() const {
 
     std::size_t merge_commits = 0;
 
-    std::map<std::string, std::size_t>
-        author_counts;
+    std::map<std::string, std::size_t> author_counts;
 
-    for (const auto& [id, commit] :
-         commits) {
+    for (const auto& [id, commit] : commits)
+    {
+        (void)id;
 
-        if (commit.parents.size() > 1) {
+        if (commit.parents.size() > 1)
+        {
             ++merge_commits;
         }
 
-        ++author_counts[
-            commit.author
-        ];
+        ++author_counts[commit.author];
     }
 
     std::ostringstream output;
@@ -226,25 +191,22 @@ std::string Analyzer::render() const {
         << "\n"
         << "  Merge commits: "
         << merge_commits
-        << "\n";
-
-    output
+        << "\n"
         << "  Branches:   "
         << branches.size()
         << "\n"
         << "  Tags:       "
-        << repository_.tags().size()
+        << tags.size()
         << "\n\n";
 
-    output
-        << "Authors:\n";
+    output << "Authors:\n";
 
-    if (author_counts.empty()) {
-        output
-            << "  (none)\n";
+    if (author_counts.empty())
+    {
+        output << "  (none)\n";
     }
-    else {
-
+    else
+    {
         std::vector<
             std::pair<std::string, std::size_t>
         > authors(
@@ -255,24 +217,19 @@ std::string Analyzer::render() const {
         std::sort(
             authors.begin(),
             authors.end(),
-            [](const auto& left,
-               const auto& right) {
-
-                if (left.second !=
-                    right.second) {
-
-                    return left.second >
-                           right.second;
+            [](const auto& left, const auto& right)
+            {
+                if (left.second != right.second)
+                {
+                    return left.second > right.second;
                 }
 
-                return left.first <
-                       right.first;
+                return left.first < right.first;
             }
         );
 
-        for (const auto& [author, count] :
-             authors) {
-
+        for (const auto& [author, count] : authors)
+        {
             output
                 << "  "
                 << author
@@ -280,7 +237,8 @@ std::string Analyzer::render() const {
                 << count
                 << " commit";
 
-            if (count != 1) {
+            if (count != 1)
+            {
                 output << 's';
             }
 
@@ -290,14 +248,14 @@ std::string Analyzer::render() const {
 
     output << "\nBranches:\n";
 
-    if (branches.empty()) {
+    if (branches.empty())
+    {
         output << "  (none)\n";
     }
-    else {
-
-        for (const auto& branch :
-             branches) {
-
+    else
+    {
+        for (const auto& branch : branches)
+        {
             Reference reference(
                 repository_.git_directory(),
                 "refs/heads/" + branch
@@ -311,7 +269,8 @@ std::string Analyzer::render() const {
                 !head.empty() &&
                 reference.exists() &&
                 reference.read() == head
-            ) {
+            )
+            {
                 output << " (HEAD)";
             }
 

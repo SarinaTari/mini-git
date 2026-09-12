@@ -2,9 +2,9 @@
 
 #include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 int main()
 {
@@ -82,7 +82,7 @@ int main()
     );
 
     std::cout
-        << "Reference tests passed\n";
+        << "Reference tests passed.\n";
 
     return 0;
 }

@@ -7,6 +7,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 namespace {
 
@@ -15,10 +16,11 @@ std::string create_commit(
     ObjectDatabase& database,
     const std::string& message,
     const std::string& parent = ""
-) {
+)
+{
     Tree tree;
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -28,7 +30,7 @@ std::string create_commit(
         message
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -39,10 +41,10 @@ std::string create_commit(
     return commit_id;
 }
 
-}
+} // namespace
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-graph-tests";
@@ -57,14 +59,14 @@ int main() {
         repository.git_directory()
     );
 
-    const auto first =
+    const std::string first =
         create_commit(
             repository,
             database,
             "Initial commit"
         );
 
-    const auto second =
+    const std::string second =
         create_commit(
             repository,
             database,
@@ -79,7 +81,7 @@ int main() {
 
     Graph graph(repository);
 
-    const auto output =
+    const std::string output =
         graph.render();
 
     assert(
@@ -89,19 +91,18 @@ int main() {
     );
 
     assert(
-        output.find(
-            "Initial commit"
-        ) != std::string::npos
+        output.find("Initial commit") !=
+        std::string::npos
     );
 
     assert(
-        output.find("HEAD")
-        != std::string::npos
+        output.find("HEAD") !=
+        std::string::npos
     );
 
     assert(
-        output.find("tag:v1.0")
-        != std::string::npos
+        output.find("tag:v1.0") !=
+        std::string::npos
     );
 
     std::filesystem::remove_all(root);

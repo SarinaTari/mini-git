@@ -2,14 +2,15 @@
 
 #include <algorithm>
 #include <cctype>
-#include <map>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
 std::string normalize(
     std::string value
-) {
+)
+{
     std::transform(
         value.begin(),
         value.end(),
@@ -24,12 +25,12 @@ std::string normalize(
     return value;
 }
 
-}
+} // namespace
 
 std::string Explainer::explain(
     const std::string& command
-) {
-
+)
+{
     const std::string name =
         normalize(command);
 

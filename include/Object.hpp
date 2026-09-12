@@ -2,7 +2,8 @@
 
 #include <string>
 
-class Object {
+class Object
+{
 public:
     virtual ~Object() = default;
 

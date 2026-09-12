@@ -6,9 +6,9 @@
 
 #include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -53,7 +53,9 @@ std::string create_commit(
     return commit_id;
 }
 
-bool throws(const auto& function)
+bool throws(
+    const auto& function
+)
 {
     try {
         function();
@@ -96,16 +98,8 @@ int main()
         repository.git_directory()
     );
 
-    // --------------------------------------------------------
-    // No tags initially
-    // --------------------------------------------------------
-
     assert(repository.tags().empty());
     assert(!repository.tag_exists("v1.0"));
-
-    // --------------------------------------------------------
-    // Create first commit
-    // --------------------------------------------------------
 
     const std::string commit_a =
         create_commit(
@@ -114,14 +108,14 @@ int main()
             "Initial commit"
         );
 
-    // --------------------------------------------------------
-    // Create tag at HEAD
-    // --------------------------------------------------------
-
     repository.create_tag("v1.0");
 
     assert(repository.tag_exists("v1.0"));
-    assert(repository.tag_commit("v1.0") == commit_a);
+
+    assert(
+        repository.tag_commit("v1.0") ==
+        commit_a
+    );
 
     assert(
         std::filesystem::exists(
@@ -132,19 +126,11 @@ int main()
         )
     );
 
-    // --------------------------------------------------------
-    // Duplicate tag rejected
-    // --------------------------------------------------------
-
     assert(
         throws([&]() {
             repository.create_tag("v1.0");
         })
     );
-
-    // --------------------------------------------------------
-    // Create second commit
-    // --------------------------------------------------------
 
     const std::string commit_b =
         create_commit(
@@ -158,22 +144,15 @@ int main()
         repository.head_commit() == commit_b
     );
 
-    // --------------------------------------------------------
-    // Create tag pointing to older commit
-    // --------------------------------------------------------
-
     repository.create_tag(
         "v1.1",
         commit_a
     );
 
     assert(
-        repository.tag_commit("v1.1") == commit_a
+        repository.tag_commit("v1.1") ==
+        commit_a
     );
-
-    // --------------------------------------------------------
-    // List tags
-    // --------------------------------------------------------
 
     repository.create_tag(
         "v2.0",
@@ -188,10 +167,6 @@ int main()
     assert(tags[1] == "v1.1");
     assert(tags[2] == "v2.0");
 
-    // --------------------------------------------------------
-    // Invalid commit rejected
-    // --------------------------------------------------------
-
     assert(
         throws([&]() {
             repository.create_tag(
@@ -201,12 +176,10 @@ int main()
         })
     );
 
-    // --------------------------------------------------------
-    // Blob cannot be tagged as a commit
-    // --------------------------------------------------------
-
     const std::string blob_id =
-        database.store(Blob("blob"));
+        database.store(
+            Blob("blob")
+        );
 
     assert(
         throws([&]() {
@@ -217,19 +190,11 @@ int main()
         })
     );
 
-    // --------------------------------------------------------
-    // Empty tag rejected
-    // --------------------------------------------------------
-
     assert(
         throws([&]() {
             repository.create_tag("");
         })
     );
-
-    // --------------------------------------------------------
-    // Traversal tag rejected
-    // --------------------------------------------------------
 
     assert(
         throws([&]() {
@@ -239,10 +204,6 @@ int main()
         })
     );
 
-    // --------------------------------------------------------
-    // Nonexistent tag lookup rejected
-    // --------------------------------------------------------
-
     assert(
         throws([&]() {
             (void)repository.tag_commit(
@@ -251,20 +212,10 @@ int main()
         })
     );
 
-    // --------------------------------------------------------
-    // Delete tag
-    // --------------------------------------------------------
-
     repository.delete_tag("v2.0");
 
     assert(!repository.tag_exists("v2.0"));
-    assert(
-        repository.tags().size() == 2
-    );
-
-    // --------------------------------------------------------
-    // Deleting tag does not delete commit
-    // --------------------------------------------------------
+    assert(repository.tags().size() == 2);
 
     assert(database.exists(commit_b));
 
@@ -274,12 +225,9 @@ int main()
         );
 
     assert(
-        restored.message() == "Second commit"
+        restored.message() ==
+        "Second commit"
     );
-
-    // --------------------------------------------------------
-    // Deleting nonexistent tag rejected
-    // --------------------------------------------------------
 
     assert(
         throws([&]() {
@@ -287,16 +235,12 @@ int main()
         })
     );
 
-    // --------------------------------------------------------
-    // Cleanup
-    // --------------------------------------------------------
-
     std::filesystem::remove_all(
         test_directory
     );
 
     std::cout
-        << "Tag tests passed\n";
+        << "Tag tests passed.\n";
 
     return 0;
 }

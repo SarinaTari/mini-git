@@ -2,12 +2,10 @@
 
 #include <string>
 
-class Explainer {
-
+class Explainer
+{
 public:
-
     static std::string explain(
         const std::string& command
     );
-
 };

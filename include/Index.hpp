@@ -4,18 +4,26 @@
 #include <string>
 #include <vector>
 
-struct IndexEntry {
+struct IndexEntry
+{
     std::string path;
     std::string object_id;
 };
 
-class Index {
+class Index
+{
 public:
-    explicit Index(const std::filesystem::path& path);
+    explicit Index(
+        const std::filesystem::path& path
+    );
 
-    void add(IndexEntry entry);
+    void add(
+        IndexEntry entry
+    );
 
-    bool contains(const std::string& path) const;
+    bool contains(
+        const std::string& path
+    ) const;
 
     const std::vector<IndexEntry>& entries() const;
 

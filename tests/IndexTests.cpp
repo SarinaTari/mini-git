@@ -2,10 +2,14 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
-void test_add_entry() {
-    Index index("index");
+void test_add_entry()
+{
+    Index index("unused-index");
 
     index.add({
         "main.cpp",
@@ -20,8 +24,9 @@ void test_add_entry() {
     assert(index.entries()[0].object_id == "abc123");
 }
 
-void test_update_entry() {
-    Index index("index");
+void test_update_entry()
+{
+    Index index("unused-index");
 
     index.add({
         "main.cpp",
@@ -34,11 +39,15 @@ void test_update_entry() {
     });
 
     assert(index.entries().size() == 1);
-    assert(index.entries()[0].object_id == "def456");
+    assert(
+        index.entries()[0].object_id ==
+        "def456"
+    );
 }
 
-void test_multiple_entries() {
-    Index index("index");
+void test_multiple_entries()
+{
+    Index index("unused-index");
 
     index.add({
         "main.cpp",
@@ -62,11 +71,17 @@ void test_multiple_entries() {
     assert(index.contains("src/App.cpp"));
 }
 
-void test_persistence() {
-    const std::filesystem::path path =
-        "index-test.txt";
+void test_persistence()
+{
+    const auto root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-index-persistence-tests";
 
-    std::filesystem::remove(path);
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto path =
+        root / "index";
 
     Index index(path);
 
@@ -83,30 +98,36 @@ void test_persistence() {
     index.save();
 
     Index loaded(path);
-
     loaded.load();
 
     assert(loaded.entries().size() == 2);
-
     assert(loaded.contains("main.cpp"));
     assert(loaded.contains("README.md"));
 
     assert(
-        loaded.entries()[0].object_id == "abc123"
+        loaded.entries()[0].object_id ==
+        "abc123"
     );
 
     assert(
-        loaded.entries()[1].object_id == "def456"
+        loaded.entries()[1].object_id ==
+        "def456"
     );
 
-    std::filesystem::remove(path);
+    std::filesystem::remove_all(root);
 }
 
-void test_update_persistence() {
-    const std::filesystem::path path =
-        "index-update-test.txt";
+void test_update_persistence()
+{
+    const auto root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-index-update-tests";
 
-    std::filesystem::remove(path);
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto path =
+        root / "index";
 
     Index index(path);
 
@@ -123,26 +144,66 @@ void test_update_persistence() {
     index.save();
 
     Index loaded(path);
-
     loaded.load();
 
     assert(loaded.entries().size() == 1);
 
     assert(
-        loaded.entries()[0].object_id == "def456"
+        loaded.entries()[0].object_id ==
+        "def456"
     );
 
-    std::filesystem::remove(path);
+    std::filesystem::remove_all(root);
 }
 
-int main() {
+void test_malformed_entry_is_rejected()
+{
+    const auto root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-index-invalid-tests";
+
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto path =
+        root / "index";
+
+    {
+        std::ofstream file(path);
+
+        assert(file);
+
+        file << "valid.cpp\tabc123\n";
+        file << "malformed-entry\n";
+    }
+
+    Index index(path);
+
+    bool failed = false;
+
+    try {
+        index.load();
+    }
+    catch (const std::runtime_error&) {
+        failed = true;
+    }
+
+    assert(failed);
+
+    std::filesystem::remove_all(root);
+}
+
+int main()
+{
     test_add_entry();
     test_update_entry();
     test_multiple_entries();
     test_persistence();
     test_update_persistence();
+    test_malformed_entry_is_rejected();
 
-    std::cout << "All Index tests passed.\n";
+    std::cout
+        << "All Index tests passed.\n";
 
     return 0;
 }

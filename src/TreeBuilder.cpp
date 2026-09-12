@@ -13,12 +13,14 @@
 TreeBuilder::TreeBuilder(
     ObjectDatabase& database
 )
-    : database_(database) {
+    : database_(database)
+{
 }
 
 std::string TreeBuilder::build(
     const std::filesystem::path& directory
-) {
+)
+{
     if (!std::filesystem::is_directory(directory)) {
         throw std::runtime_error(
             "Not a directory: " +
@@ -30,34 +32,41 @@ std::string TreeBuilder::build(
 
     for (
         const auto& entry :
-        std::filesystem::directory_iterator(directory)
+        std::filesystem::directory_iterator(
+            directory
+        )
     ) {
-        if (
-            entry.path().filename() ==
-            ".mini-git"
-        ) {
+        const auto filename =
+            entry.path().filename();
+
+        if (filename == ".mini-git") {
             continue;
         }
 
         if (entry.is_regular_file()) {
-            Blob blob =
-                Blob::from_file(entry.path());
+            const Blob blob =
+                Blob::from_file(
+                    entry.path()
+                );
 
             const std::string blob_id =
                 database_.store(blob);
 
             tree.add_entry({
-                entry.path().filename().string(),
+                filename.string(),
                 blob_id,
                 false
             });
+
+            continue;
         }
-        else if (entry.is_directory()) {
+
+        if (entry.is_directory()) {
             const std::string tree_id =
                 build(entry.path());
 
             tree.add_entry({
-                entry.path().filename().string(),
+                filename.string(),
                 tree_id,
                 true
             });
@@ -70,15 +79,18 @@ std::string TreeBuilder::build(
 std::string TreeBuilder::build_from_index(
     const Index& index,
     const std::filesystem::path& root
-) {
-    struct Node {
+)
+{
+    struct Node
+    {
         std::map<std::string, std::string> blobs;
         std::map<std::string, Node> directories;
     };
 
     Node root_node;
 
-    for (const auto& entry : index.entries()) {
+    for (const auto& entry :
+         index.entries()) {
         std::filesystem::path relative_path =
             entry.path;
 
@@ -95,10 +107,8 @@ std::string TreeBuilder::build_from_index(
 
         std::vector<std::string> parts;
 
-        for (
-            const auto& part :
-            relative_path
-        ) {
+        for (const auto& part :
+             relative_path) {
             parts.push_back(
                 part.string()
             );
@@ -129,7 +139,6 @@ std::string TreeBuilder::build_from_index(
 
             for (const auto& [name, object_id] :
                  node.blobs) {
-
                 tree.add_entry({
                     name,
                     object_id,
@@ -139,7 +148,6 @@ std::string TreeBuilder::build_from_index(
 
             for (const auto& [name, child] :
                  node.directories) {
-
                 const std::string child_id =
                     build_node(child);
 

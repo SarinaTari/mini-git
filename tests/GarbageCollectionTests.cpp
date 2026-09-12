@@ -8,6 +8,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -25,11 +26,9 @@ int main()
         repository.git_directory()
     );
 
-    Blob reachable_blob(
-        "reachable"
-    );
+    Blob reachable_blob("reachable");
 
-    const auto blob_id =
+    const std::string blob_id =
         database.store(reachable_blob);
 
     Tree tree;
@@ -40,7 +39,7 @@ int main()
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -50,7 +49,7 @@ int main()
         "GC test"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -58,14 +57,10 @@ int main()
         commit_id
     );
 
-    Blob unreachable_blob(
-        "unreachable"
-    );
+    Blob unreachable_blob("unreachable");
 
-    const auto unreachable_id =
-        database.store(
-            unreachable_blob
-        );
+    const std::string unreachable_id =
+        database.store(unreachable_blob);
 
     GarbageCollector collector(
         repository.git_directory()
@@ -83,21 +78,19 @@ int main()
     assert(
         report.unreachable_objects.find(
             blob_id
-        ) ==
-        report.unreachable_objects.end()
+        ) == report.unreachable_objects.end()
     );
 
     assert(
         report.reclaimable_bytes > 0
     );
 
-    const auto output =
+    const std::string output =
         collector.render();
 
     assert(
-        output.find(
-            "Dry run only"
-        ) != std::string::npos
+        output.find("Dry run only") !=
+        std::string::npos
     );
 
     assert(

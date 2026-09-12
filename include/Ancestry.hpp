@@ -5,10 +5,9 @@
 #include <set>
 #include <string>
 
-class Ancestry {
-
+class Ancestry
+{
 public:
-
     explicit Ancestry(
         const std::filesystem::path& git_directory
     );
@@ -24,12 +23,10 @@ public:
     ) const;
 
 private:
-
     void collect_ancestors(
         const std::string& commit_id,
         std::set<std::string>& ancestors
     ) const;
 
     std::filesystem::path git_directory_;
-
 };

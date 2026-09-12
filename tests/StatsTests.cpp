@@ -8,9 +8,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-stats-tests";
@@ -27,7 +28,7 @@ int main() {
 
     Blob blob("hello");
 
-    const auto blob_id =
+    const std::string blob_id =
         database.store(blob);
 
     Tree tree;
@@ -38,7 +39,7 @@ int main() {
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -48,7 +49,7 @@ int main() {
         "Initial commit"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -58,7 +59,7 @@ int main() {
 
     Stats stats(repository);
 
-    const auto output =
+    const std::string output =
         stats.render();
 
     assert(

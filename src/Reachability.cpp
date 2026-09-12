@@ -2,15 +2,15 @@
 
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "Reference.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
-
-#include <stdexcept>
 
 Reachability::Reachability(
     const std::filesystem::path& git_directory
 )
-    : git_directory_(git_directory) {
+    : git_directory_(git_directory)
+{
 }
 
 void Reachability::visit_commit(
@@ -46,7 +46,6 @@ void Reachability::visit_commit(
 
     for (const auto& parent :
          commit.parent_ids()) {
-
         visit_commit(
             parent,
             visited
@@ -82,7 +81,6 @@ void Reachability::visit_tree(
 
     for (const auto& entry :
          tree.entries()) {
-
         if (entry.object_id.empty()) {
             continue;
         }
@@ -122,7 +120,6 @@ Reachability::reachable_objects() const
 
     for (const auto& branch :
          repository.branches()) {
-
         Reference reference(
             git_directory_,
             "refs/heads/" + branch
@@ -145,7 +142,6 @@ Reachability::reachable_objects() const
 
     for (const auto& tag :
          repository.tags()) {
-
         Reference reference(
             git_directory_,
             "refs/tags/" + tag
@@ -183,7 +179,6 @@ Reachability::unreachable_objects() const
 
     for (const auto& object_id :
          database.object_ids()) {
-
         if (
             reachable.find(object_id) ==
             reachable.end()

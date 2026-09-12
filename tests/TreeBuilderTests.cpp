@@ -1,4 +1,3 @@
-#include "Blob.hpp"
 #include "ObjectDatabase.hpp"
 #include "TreeBuilder.hpp"
 
@@ -6,141 +5,143 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string>
 
-void test_build_directory() {
-    const std::filesystem::path test_root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-tree-builder-test";
+namespace {
+
+void write_file(
+    const std::filesystem::path& path,
+    const std::string& content
+)
+{
+    std::filesystem::create_directories(
+        path.parent_path()
+    );
+
+    std::ofstream file(
+        path,
+        std::ios::binary
+    );
+
+    assert(file);
+
+    file << content;
+
+    assert(file.good());
+}
+
+} // namespace
+
+void test_build_directory()
+{
+    const auto test_root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-tree-builder-test";
 
     std::filesystem::remove_all(test_root);
 
-    const std::filesystem::path git_dir =
+    const auto git_dir =
         test_root / ".mini-git";
 
     std::filesystem::create_directories(
         git_dir / "objects"
     );
 
-    const std::filesystem::path source_dir =
+    const auto source_dir =
         test_root / "project";
 
-    std::filesystem::create_directories(source_dir);
+    std::filesystem::create_directories(
+        source_dir
+    );
 
-    // Create root-level files.
-    {
-        std::ofstream file(
-            source_dir / "main.cpp",
-            std::ios::binary
-        );
+    write_file(
+        source_dir / "main.cpp",
+        "int main() {}\n"
+    );
 
-        file << "int main() {}\n";
-    }
+    write_file(
+        source_dir / "README.md",
+        "Hello Mini Git!\n"
+    );
 
-    {
-        std::ofstream file(
-            source_dir / "README.md",
-            std::ios::binary
-        );
-
-        file << "Hello Mini Git!\n";
-    }
-
-    // Create a nested directory.
-    const std::filesystem::path src_dir =
+    const auto src_dir =
         source_dir / "src";
 
-    std::filesystem::create_directories(src_dir);
+    std::filesystem::create_directories(
+        src_dir
+    );
 
-    // Create files inside the nested directory.
-    {
-        std::ofstream file(
-            src_dir / "App.cpp",
-            std::ios::binary
-        );
+    write_file(
+        src_dir / "App.cpp",
+        "void app() {}\n"
+    );
 
-        file << "void app() {}\n";
-    }
+    write_file(
+        src_dir / "Utils.cpp",
+        "void utils() {}\n"
+    );
 
-    {
-        std::ofstream file(
-            src_dir / "Utils.cpp",
-            std::ios::binary
-        );
-
-        file << "void utils() {}\n";
-    }
-
-    // Create an empty directory.
-    const std::filesystem::path empty_dir =
+    const auto empty_dir =
         source_dir / "empty";
 
-    std::filesystem::create_directories(empty_dir);
+    std::filesystem::create_directories(
+        empty_dir
+    );
 
-    // Create a fake .mini-git directory.
-    // TreeBuilder must ignore it.
-    const std::filesystem::path fake_git_dir =
+    const auto fake_git_dir =
         source_dir / ".mini-git";
 
     std::filesystem::create_directories(
         fake_git_dir / "objects"
     );
 
-    {
-        std::ofstream file(
-            fake_git_dir / "should-not-be-included.txt",
-            std::ios::binary
-        );
+    write_file(
+        fake_git_dir / "should-not-be-included.txt",
+        "This must not appear in the Tree.\n"
+    );
 
-        file << "This must not appear in the Tree.\n";
-    }
-
-    // Create the object database.
     ObjectDatabase database(git_dir);
-
-    // Create the TreeBuilder.
     TreeBuilder builder(database);
 
-    // Build the complete directory tree.
     const std::string tree_id =
         builder.build(source_dir);
 
-    // The root Tree should exist.
     assert(database.exists(tree_id));
 
-    // Read the serialized root Tree.
     const std::string tree_data =
         database.read(tree_id);
 
-    // The Tree should contain data.
     assert(!tree_data.empty());
 
-    // The root Tree should contain the nested src directory.
     assert(
-        tree_data.find("tree ") != std::string::npos
+        tree_data.find("tree ") !=
+        std::string::npos
     );
 
     assert(
-        tree_data.find(" src\n") != std::string::npos
+        tree_data.find(" src\n") !=
+        std::string::npos
     );
 
-    // The root Tree should contain the empty directory.
     assert(
-        tree_data.find(" empty\n") != std::string::npos
+        tree_data.find(" empty\n") !=
+        std::string::npos
     );
 
-    // .mini-git must not be included.
     assert(
-        tree_data.find(".mini-git") == std::string::npos
+        tree_data.find(".mini-git") ==
+        std::string::npos
     );
 
-    // Clean up.
     std::filesystem::remove_all(test_root);
 }
 
-int main() {
+int main()
+{
     test_build_directory();
 
-    std::cout << "All TreeBuilder tests passed.\n";
+    std::cout
+        << "All TreeBuilder tests passed.\n";
 
     return 0;
 }

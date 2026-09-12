@@ -5,7 +5,8 @@
 #include <string>
 #include <vector>
 
-class Commit : public Object {
+class Commit : public Object
+{
 public:
     Commit(
         std::string tree_id,

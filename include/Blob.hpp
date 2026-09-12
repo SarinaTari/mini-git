@@ -5,9 +5,12 @@
 #include <filesystem>
 #include <string>
 
-class Blob : public Object {
+class Blob : public Object
+{
 public:
-    explicit Blob(std::string content);
+    explicit Blob(
+        std::string content
+    );
 
     static Blob from_file(
         const std::filesystem::path& path

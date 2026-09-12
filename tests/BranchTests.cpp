@@ -2,8 +2,8 @@
 
 #include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -23,18 +23,6 @@ int main()
 
     repository.initialize();
 
-    {
-        std::ofstream file(
-            test_directory / "file.txt"
-        );
-
-        file << "hello\n";
-    }
-
-    /*
-     * No commit yet.
-     * Branch creation must fail.
-     */
     bool failed = false;
 
     try {
@@ -46,10 +34,6 @@ int main()
 
     assert(failed);
 
-    /*
-     * Create a minimal first commit by directly
-     * creating a reference target for this unit test.
-     */
     repository.update_branch(
         "main",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -57,17 +41,12 @@ int main()
 
     repository.create_branch("feature");
 
-    assert(
-        repository.branches().size() == 2
-    );
+    const auto branches =
+        repository.branches();
 
-    assert(
-        repository.branches()[0] == "feature"
-    );
-
-    assert(
-        repository.branches()[1] == "main"
-    );
+    assert(branches.size() == 2);
+    assert(branches[0] == "feature");
+    assert(branches[1] == "main");
 
     assert(
         repository.current_branch() == "main"
@@ -78,7 +57,7 @@ int main()
     );
 
     std::cout
-        << "Branch tests passed\n";
+        << "Branch tests passed.\n";
 
     return 0;
 }

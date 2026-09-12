@@ -5,19 +5,20 @@
 
 #include <cassert>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     Blob blob(
         "Hello ObjectType\n"
     );
 
-    const auto blob_data =
+    const std::string blob_data =
         blob.serialize();
 
     assert(
-        detect_object_type(blob_data)
-        == ObjectType::Blob
+        detect_object_type(blob_data) ==
+        ObjectType::Blob
     );
 
     Tree tree;
@@ -28,12 +29,12 @@ int main() {
         false
     });
 
-    const auto tree_data =
+    const std::string tree_data =
         tree.serialize();
 
     assert(
-        detect_object_type(tree_data)
-        == ObjectType::Tree
+        detect_object_type(tree_data) ==
+        ObjectType::Tree
     );
 
     Commit commit(
@@ -43,27 +44,27 @@ int main() {
         "Initial commit"
     );
 
-    const auto commit_data =
+    const std::string commit_data =
         commit.serialize();
 
     assert(
-        detect_object_type(commit_data)
-        == ObjectType::Commit
+        detect_object_type(commit_data) ==
+        ObjectType::Commit
     );
 
     assert(
-        object_type_name(ObjectType::Blob)
-        == "blob"
+        object_type_name(ObjectType::Blob) ==
+        "blob"
     );
 
     assert(
-        object_type_name(ObjectType::Tree)
-        == "tree"
+        object_type_name(ObjectType::Tree) ==
+        "tree"
     );
 
     assert(
-        object_type_name(ObjectType::Commit)
-        == "commit"
+        object_type_name(ObjectType::Commit) ==
+        "commit"
     );
 
     std::cout

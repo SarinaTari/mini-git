@@ -5,13 +5,15 @@
 #include <string>
 #include <vector>
 
-struct TreeEntry {
+struct TreeEntry
+{
     std::string name;
     std::string object_id;
     bool is_tree;
 };
 
-class Tree : public Object {
+class Tree : public Object
+{
 public:
     void add_entry(
         TreeEntry entry

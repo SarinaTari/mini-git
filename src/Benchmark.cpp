@@ -5,59 +5,50 @@
 #include "Repository.hpp"
 
 #include <chrono>
-#include <filesystem>
+#include <cstddef>
 #include <sstream>
 #include <string>
-#include <vector>
 
-namespace {
+namespace
+{
 
-using Clock =
-    std::chrono::steady_clock;
+using Clock = std::chrono::steady_clock;
 
 double milliseconds(
     const Clock::time_point& start,
     const Clock::time_point& end
-) {
+)
+{
     return std::chrono::duration<double, std::milli>(
         end - start
     ).count();
 }
 
-}
+} // namespace
 
 Benchmark::Benchmark(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string Benchmark::render() const {
-
+std::string Benchmark::render() const
+{
     const std::string sample =
         "Mini Git benchmark data\n"
         "This measures hashing and object lookup.\n";
 
-    constexpr std::size_t iterations =
-        1000;
+    constexpr std::size_t iterations = 1000;
 
-    auto start =
-        Clock::now();
+    auto start = Clock::now();
 
-    std::string last_hash;
-
-    for (
-        std::size_t i = 0;
-        i < iterations;
-        ++i
-    ) {
-
-        last_hash =
-            Hash::sha256(sample);
+    for (std::size_t i = 0; i < iterations; ++i)
+    {
+        (void)Hash::sha256(sample);
     }
 
-    auto end =
-        Clock::now();
+    auto end = Clock::now();
 
     const double hash_time =
         milliseconds(start, end);
@@ -71,26 +62,18 @@ std::string Benchmark::render() const {
 
     double lookup_time = 0.0;
 
-    if (!object_ids.empty()) {
+    if (!object_ids.empty())
+    {
+        start = Clock::now();
 
-        start =
-            Clock::now();
-
-        for (
-            std::size_t i = 0;
-            i < iterations;
-            ++i
-        ) {
-
+        for (std::size_t i = 0; i < iterations; ++i)
+        {
             (void)database.exists(
-                object_ids[
-                    i % object_ids.size()
-                ]
+                object_ids[i % object_ids.size()]
             );
         }
 
-        end =
-            Clock::now();
+        end = Clock::now();
 
         lookup_time =
             milliseconds(start, end);
@@ -115,22 +98,20 @@ std::string Benchmark::render() const {
         << "  Average: "
         << (
             hash_time /
-            static_cast<double>(
-                iterations
-            )
+            static_cast<double>(iterations)
         )
         << " ms\n\n";
 
     output
         << "Object existence lookup:\n";
 
-    if (object_ids.empty()) {
-
+    if (object_ids.empty())
+    {
         output
             << "  No objects available\n";
     }
-    else {
-
+    else
+    {
         output
             << "  Total: "
             << lookup_time
@@ -138,9 +119,7 @@ std::string Benchmark::render() const {
             << "  Average: "
             << (
                 lookup_time /
-                static_cast<double>(
-                    iterations
-                )
+                static_cast<double>(iterations)
             )
             << " ms\n";
     }

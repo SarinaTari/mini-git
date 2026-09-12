@@ -4,8 +4,10 @@
 #include <iostream>
 #include <string>
 
-void test_empty_string() {
-    const std::string result = Hash::sha256("");
+void test_empty_string()
+{
+    const std::string result =
+        Hash::sha256("");
 
     assert(
         result ==
@@ -14,8 +16,10 @@ void test_empty_string() {
     );
 }
 
-void test_hello() {
-    const std::string result = Hash::sha256("hello");
+void test_hello()
+{
+    const std::string result =
+        Hash::sha256("hello");
 
     assert(
         result ==
@@ -24,37 +28,52 @@ void test_hello() {
     );
 }
 
-void test_deterministic() {
-    const std::string first = Hash::sha256("Mini Git");
-    const std::string second = Hash::sha256("Mini Git");
+void test_deterministic()
+{
+    const std::string first =
+        Hash::sha256("Mini Git");
+
+    const std::string second =
+        Hash::sha256("Mini Git");
 
     assert(first == second);
 }
 
-void test_different_inputs() {
-    const std::string first = Hash::sha256("hello");
-    const std::string second = Hash::sha256("Hello");
+void test_different_inputs()
+{
+    const std::string first =
+        Hash::sha256("hello");
+
+    const std::string second =
+        Hash::sha256("Hello");
 
     assert(first != second);
 }
 
-void test_binary_data() {
-    const std::string data("\0abc", 4);
+void test_binary_data()
+{
+    const std::string data(
+        "\0abc",
+        4
+    );
 
-    const std::string result = Hash::sha256(data);
+    const std::string result =
+        Hash::sha256(data);
 
     assert(!result.empty());
     assert(result.size() == 64);
 }
 
-int main() {
+int main()
+{
     test_empty_string();
     test_hello();
     test_deterministic();
     test_different_inputs();
     test_binary_data();
 
-    std::cout << "All Hash tests passed.\n";
+    std::cout
+        << "All Hash tests passed.\n";
 
     return 0;
 }

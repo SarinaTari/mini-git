@@ -1,13 +1,14 @@
 #pragma once
 
-#include "Reference.hpp"
 #include "Index.hpp"
+#include "Reference.hpp"
 
 #include <filesystem>
 #include <string>
 #include <vector>
 
-class Repository {
+class Repository
+{
 public:
     explicit Repository(
         const std::filesystem::path& root
@@ -31,16 +32,22 @@ public:
 
     std::vector<std::string> tags() const;
 
-    bool tag_exists(const std::string& tag) const;
+    bool tag_exists(
+        const std::string& tag
+    ) const;
 
-    std::string tag_commit(const std::string& tag) const;
+    std::string tag_commit(
+        const std::string& tag
+    ) const;
 
     void create_tag(
         const std::string& tag,
         const std::string& commit_id = ""
     );
 
-    void delete_tag(const std::string& tag);
+    void delete_tag(
+        const std::string& tag
+    );
 
     void update_branch(
         const std::string& branch,

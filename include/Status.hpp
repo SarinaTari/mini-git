@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-struct StatusResult {
+struct StatusResult
+{
     std::vector<std::string> modified;
     std::vector<std::string> deleted;
     std::vector<std::string> untracked;
@@ -16,7 +17,8 @@ struct StatusResult {
     std::vector<std::string> conflicts;
 };
 
-class Status {
+class Status
+{
 public:
     Status(
         const std::filesystem::path& root,

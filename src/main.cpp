@@ -1,39 +1,38 @@
+#include "Analyzer.hpp"
+#include "Ancestry.hpp"
+#include "Benchmark.hpp"
 #include "Blob.hpp"
 #include "Commit.hpp"
 #include "Diff.hpp"
+#include "Doctor.hpp"
+#include "Explainer.hpp"
 #include "FileReader.hpp"
+#include "GarbageCollector.hpp"
+#include "Graph.hpp"
 #include "Hash.hpp"
+#include "Impact.hpp"
 #include "Index.hpp"
+#include "Inspector.hpp"
+#include "IntegrityChecker.hpp"
 #include "Merge.hpp"
 #include "ObjectDatabase.hpp"
-#include "Repository.hpp"
-#include "Status.hpp"
-#include "TreeBuilder.hpp"
-#include "Explainer.hpp"
-#include "Graph.hpp"
-#include "Inspector.hpp"
-#include "Stats.hpp"
-#include "Analyzer.hpp"
-#include "Benchmark.hpp"
-#include "Doctor.hpp"
-#include "Impact.hpp"
-#include "StorageAnalyzer.hpp"
-#include "Ancestry.hpp"
-#include "GarbageCollector.hpp"
-#include "IntegrityChecker.hpp"
 #include "Reachability.hpp"
+#include "Repository.hpp"
+#include "Stats.hpp"
+#include "Status.hpp"
+#include "StorageAnalyzer.hpp"
+#include "TreeBuilder.hpp"
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
-void print_usage() {
-
+void print_usage()
+{
     std::cout
         << "Mini Git\n\n"
         << "Usage:\n"
@@ -66,7 +65,7 @@ void print_usage() {
         << "  mini-git graph\n"
         << "  mini-git stats\n"
         << "  mini-git analyze\n"
-        << "  mini-git impact <file>\n"
+        << "  mini-git impact <commit>\n"
         << "  mini-git doctor\n"
         << "  mini-git storage\n"
         << "  mini-git benchmark\n"
@@ -121,14 +120,8 @@ void command_branch(
         for (const auto& branch :
              branches) {
 
-            if (branch == current) {
-                std::cout << "* ";
-            }
-            else {
-                std::cout << "  ";
-            }
-
             std::cout
+                << (branch == current ? "* " : "  ")
                 << branch
                 << '\n';
         }
@@ -137,9 +130,7 @@ void command_branch(
     }
 
     if (argc == 3) {
-        repository.create_branch(
-            argv[2]
-        );
+        repository.create_branch(argv[2]);
 
         std::cout
             << "Created branch '"
@@ -227,7 +218,8 @@ void command_tag(
 )
 {
     if (argc == 2) {
-        const auto tags = repository.tags();
+        const auto tags =
+            repository.tags();
 
         if (tags.empty()) {
             std::cout
@@ -245,8 +237,13 @@ void command_tag(
         return;
     }
 
-    if (argc == 4 && std::string(argv[2]) == "--show") {
-        const std::string tag = argv[3];
+    if (
+        argc == 4 &&
+        std::string(argv[2]) == "--show"
+    ) {
+        const std::string tag =
+            argv[3];
+
         const std::string commit_id =
             repository.tag_commit(tag);
 
@@ -276,8 +273,12 @@ void command_tag(
         return;
     }
 
-    if (argc == 4 && std::string(argv[2]) == "--delete") {
-        const std::string tag = argv[3];
+    if (
+        argc == 4 &&
+        std::string(argv[2]) == "--delete"
+    ) {
+        const std::string tag =
+            argv[3];
 
         repository.delete_tag(tag);
 
@@ -290,7 +291,8 @@ void command_tag(
     }
 
     if (argc == 3) {
-        const std::string tag = argv[2];
+        const std::string tag =
+            argv[2];
 
         repository.create_tag(tag);
 
@@ -305,8 +307,11 @@ void command_tag(
     }
 
     if (argc == 4) {
-        const std::string tag = argv[2];
-        const std::string commit_id = argv[3];
+        const std::string tag =
+            argv[2];
+
+        const std::string commit_id =
+            argv[3];
 
         repository.create_tag(
             tag,
@@ -343,7 +348,7 @@ void command_merge(
         std::getenv("USER");
 
     const std::string author =
-        user
+        user != nullptr
             ? user
             : "unknown";
 
@@ -410,9 +415,7 @@ void command_merge(
         << branch
         << "' into '"
         << repository.current_branch()
-        << "'\n";
-
-    std::cout
+        << "'\n"
         << "Result: "
         << result
         << '\n';
@@ -587,7 +590,7 @@ int main(
                 );
             }
 
-            Blob blob =
+            const Blob blob =
                 Blob::from_file(file);
 
             ObjectDatabase database(
@@ -603,34 +606,35 @@ int main(
 
             index.load();
 
-            index.add(
-                IndexEntry{
-                    relative.generic_string(),
-                    object_id
-                }
-            );
+            index.add({
+                relative.generic_string(),
+                object_id
+            });
 
             index.save();
+
+            const std::string relative_path =
+                relative.generic_string();
 
             if (
                 repository.merge_in_progress() &&
                 repository.is_merge_conflict(
-                    relative.generic_string()
+                    relative_path
                 )
             ) {
                 repository.resolve_merge_conflict(
-                    relative.generic_string()
+                    relative_path
                 );
 
                 std::cout
                     << "Resolved merge conflict: "
-                    << relative.generic_string()
+                    << relative_path
                     << '\n';
             }
             else {
                 std::cout
                     << "Added "
-                    << relative.generic_string()
+                    << relative_path
                     << '\n';
             }
 
@@ -647,9 +651,7 @@ int main(
 
             index.load();
 
-            if (
-                !repository.is_detached_head()
-            ) {
+            if (!repository.is_detached_head()) {
                 std::cout
                     << "On branch "
                     << repository.current_branch()
@@ -666,10 +668,7 @@ int main(
                 else {
                     std::cout
                         << "HEAD detached at "
-                        << commit.substr(
-                            0,
-                            7
-                        )
+                        << commit.substr(0, 7)
                         << '\n';
                 }
             }
@@ -695,10 +694,8 @@ int main(
                     std::cout
                         << "Unresolved conflicts:\n";
 
-                    for (
-                        const auto& path :
-                        result.conflicts
-                    ) {
+                    for (const auto& path :
+                         result.conflicts) {
                         std::cout
                             << "  "
                             << path
@@ -711,10 +708,8 @@ int main(
                 std::cout
                     << "\nModified:\n";
 
-                for (
-                    const auto& path :
-                    result.modified
-                ) {
+                for (const auto& path :
+                     result.modified) {
                     std::cout
                         << "  "
                         << path
@@ -726,10 +721,8 @@ int main(
                 std::cout
                     << "\nDeleted:\n";
 
-                for (
-                    const auto& path :
-                    result.deleted
-                ) {
+                for (const auto& path :
+                     result.deleted) {
                     std::cout
                         << "  "
                         << path
@@ -741,10 +734,8 @@ int main(
                 std::cout
                     << "\nUntracked:\n";
 
-                for (
-                    const auto& path :
-                    result.untracked
-                ) {
+                for (const auto& path :
+                     result.untracked) {
                     std::cout
                         << "  "
                         << path
@@ -768,9 +759,7 @@ int main(
             Repository repository =
                 open_repository();
 
-            if (
-                repository.merge_in_progress()
-            ) {
+            if (repository.merge_in_progress()) {
                 throw std::runtime_error(
                     "A merge is in progress. "
                     "Resolve conflicts and run "
@@ -778,12 +767,9 @@ int main(
                 );
             }
 
-            if (
-                repository.is_detached_head()
-            ) {
+            if (repository.is_detached_head()) {
                 throw std::runtime_error(
-                    "Cannot commit on detached HEAD "
-                    "in Phase 16"
+                    "Cannot commit on detached HEAD"
                 );
             }
 
@@ -793,9 +779,7 @@ int main(
 
             index.load();
 
-            if (
-                index.entries().empty()
-            ) {
+            if (index.entries().empty()) {
                 throw std::runtime_error(
                     "Nothing to commit"
                 );
@@ -805,9 +789,7 @@ int main(
                 repository.git_directory()
             );
 
-            TreeBuilder tree_builder(
-                database
-            );
+            TreeBuilder tree_builder(database);
 
             const std::string tree_id =
                 tree_builder.build_from_index(
@@ -822,7 +804,7 @@ int main(
                 std::getenv("USER");
 
             const std::string author =
-                user
+                user != nullptr
                     ? user
                     : "unknown";
 
@@ -845,10 +827,7 @@ int main(
                 << "["
                 << repository.current_branch()
                 << " "
-                << commit_id.substr(
-                    0,
-                    7
-                )
+                << commit_id.substr(0, 7)
                 << "] "
                 << argv[3]
                 << '\n';
@@ -878,7 +857,7 @@ int main(
                 const std::string data =
                     database.read(current);
 
-                Commit commit =
+                const Commit commit =
                     Commit::deserialize(data);
 
                 std::cout
@@ -886,10 +865,8 @@ int main(
                     << current
                     << '\n';
 
-                for (
-                    const auto& parent :
-                    commit.parent_ids()
-                ) {
+                for (const auto& parent :
+                     commit.parent_ids()) {
                     std::cout
                         << "Parent: "
                         << parent
@@ -899,14 +876,10 @@ int main(
                 std::cout
                     << "Author: "
                     << commit.author()
-                    << '\n';
-
-                std::cout
-                    << '\n'
+                    << "\n\n"
                     << "    "
                     << commit.message()
-                    << '\n'
-                    << '\n';
+                    << "\n\n";
 
                 current =
                     commit.parent_id();
@@ -916,7 +889,6 @@ int main(
         }
 
         if (command == "inspect") {
-
             if (argc != 3) {
                 throw std::invalid_argument(
                     "Usage: mini-git inspect <object-id>"
@@ -939,7 +911,6 @@ int main(
         }
 
         if (command == "explain") {
-
             if (argc != 3) {
                 throw std::invalid_argument(
                     "Usage: mini-git explain <command>"
@@ -954,7 +925,6 @@ int main(
         }
 
         if (command == "graph") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git graph"
@@ -974,7 +944,6 @@ int main(
         }
 
         if (command == "stats") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git stats"
@@ -992,9 +961,8 @@ int main(
 
             return 0;
         }
-        
-        if (command == "analyze") {
 
+        if (command == "analyze") {
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git analyze"
@@ -1014,7 +982,6 @@ int main(
         }
 
         if (command == "impact") {
-
             if (argc != 3) {
                 throw std::invalid_argument(
                     "Usage: mini-git impact <commit>"
@@ -1034,7 +1001,6 @@ int main(
         }
 
         if (command == "doctor") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git doctor"
@@ -1054,7 +1020,6 @@ int main(
         }
 
         if (command == "storage") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git storage"
@@ -1074,7 +1039,6 @@ int main(
         }
 
         if (command == "benchmark") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git benchmark"
@@ -1094,7 +1058,6 @@ int main(
         }
 
         if (command == "fsck") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git fsck"
@@ -1120,7 +1083,6 @@ int main(
         }
 
         if (command == "reachability") {
-
             if (argc != 2) {
                 throw std::invalid_argument(
                     "Usage: mini-git reachability"
@@ -1141,16 +1103,13 @@ int main(
                 reachability.unreachable_objects();
 
             std::cout
-                << "Reachability Analysis\n\n";
-
-            std::cout
+                << "Reachability Analysis\n\n"
                 << "Reachable objects: "
                 << reachable.size()
                 << '\n';
 
             for (const auto& object_id :
                  reachable) {
-
                 std::cout
                     << "  "
                     << object_id
@@ -1164,7 +1123,6 @@ int main(
 
             for (const auto& object_id :
                  unreachable) {
-
                 std::cout
                     << "  "
                     << object_id
@@ -1175,7 +1133,6 @@ int main(
         }
 
         if (command == "gc") {
-
             if (
                 argc != 3 ||
                 std::string(argv[2]) != "--dry-run"
@@ -1199,7 +1156,6 @@ int main(
         }
 
         if (command == "merge-base") {
-
             if (argc != 4) {
                 throw std::invalid_argument(
                     "Usage: mini-git merge-base "
@@ -1235,7 +1191,6 @@ int main(
         }
 
         if (command == "is-ancestor") {
-
             if (argc != 4) {
                 throw std::invalid_argument(
                     "Usage: mini-git is-ancestor "
@@ -1256,24 +1211,16 @@ int main(
                     argv[3]
                 );
 
-            if (result) {
-                std::cout
-                    << "true\n";
-                return 0;
-            }
-
             std::cout
-                << "false\n";
+                << (result ? "true\n" : "false\n");
 
-            return 1;
+            return result ? 0 : 1;
         }
 
         print_usage();
         return 1;
     }
-    catch (
-        const std::exception& error
-    ) {
+    catch (const std::exception& error) {
         std::cerr
             << "Error: "
             << error.what()

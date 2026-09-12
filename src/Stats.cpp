@@ -4,17 +4,21 @@
 #include "ObjectType.hpp"
 #include "Repository.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <sstream>
+#include <string>
 
 Stats::Stats(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string Stats::render() const {
-
+std::string Stats::render() const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -28,11 +32,8 @@ std::string Stats::render() const {
     const auto object_ids =
         database.object_ids();
 
-    for (
-        const auto& object_id :
-        object_ids
-    ) {
-
+    for (const auto& object_id :
+         object_ids) {
         const auto object_path =
             repository_.git_directory()
             / "objects"
@@ -57,7 +58,6 @@ std::string Stats::render() const {
             detect_object_type(data);
 
         switch (type) {
-
             case ObjectType::Blob:
                 ++blobs;
                 break;
@@ -92,24 +92,31 @@ std::string Stats::render() const {
         << commits
         << "\n\n";
 
+    const auto branches =
+        repository_.branches();
+
+    const auto tags =
+        repository_.tags();
+
     output
         << "References:\n"
         << "  Branches: "
-        << repository_.branches().size()
+        << branches.size()
         << '\n'
         << "  Tags:     "
-        << repository_.tags().size()
+        << tags.size()
         << '\n';
 
-    if (!repository_.head_commit().empty()) {
+    const std::string head =
+        repository_.head_commit();
 
+    if (!head.empty()) {
         output
             << "  HEAD:     "
-            << repository_.head_commit()
+            << head
             << '\n';
     }
     else {
-
         output
             << "  HEAD:     (no commit)\n";
     }

@@ -1,5 +1,4 @@
 #include "Analyzer.hpp"
-#include "Blob.hpp"
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
@@ -8,9 +7,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-analyzer-tests";
@@ -27,7 +27,7 @@ int main() {
 
     Tree tree;
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit first(
@@ -37,7 +37,7 @@ int main() {
         "Initial commit"
     );
 
-    const auto first_id =
+    const std::string first_id =
         database.store(first);
 
     repository.update_branch(
@@ -56,7 +56,7 @@ int main() {
         "Second commit"
     );
 
-    const auto second_id =
+    const std::string second_id =
         database.store(second);
 
     repository.update_branch(
@@ -66,7 +66,7 @@ int main() {
 
     Analyzer analyzer(repository);
 
-    const auto output =
+    const std::string output =
         analyzer.render();
 
     assert(

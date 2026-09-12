@@ -9,7 +9,8 @@
 class Repository;
 class ObjectDatabase;
 
-class Merge {
+class Merge
+{
 public:
     explicit Merge(
         Repository& repository

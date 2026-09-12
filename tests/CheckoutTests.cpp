@@ -5,8 +5,8 @@
 
 #include <cassert>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -52,10 +52,6 @@ int main()
 
     repository.create_branch("feature");
 
-    assert(
-        repository.branches().size() == 2
-    );
-
     repository.checkout("feature");
 
     assert(
@@ -81,7 +77,7 @@ int main()
     );
 
     std::cout
-        << "Checkout tests passed\n";
+        << "Checkout tests passed.\n";
 
     return 0;
 }

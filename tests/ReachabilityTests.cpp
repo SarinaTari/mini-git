@@ -8,6 +8,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -29,7 +30,7 @@ int main()
         "reachable content"
     );
 
-    const auto blob_id =
+    const std::string blob_id =
         database.store(blob);
 
     Tree tree;
@@ -40,7 +41,7 @@ int main()
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -50,7 +51,7 @@ int main()
         "Reachability test"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -62,10 +63,8 @@ int main()
         "unreachable"
     );
 
-    const auto unreachable_id =
-        database.store(
-            unreachable_blob
-        );
+    const std::string unreachable_id =
+        database.store(unreachable_blob);
 
     Reachability reachability(
         repository.git_directory()
@@ -94,6 +93,11 @@ int main()
 
     assert(
         unreachable.find(unreachable_id) !=
+        unreachable.end()
+    );
+
+    assert(
+        unreachable.find(blob_id) ==
         unreachable.end()
     );
 

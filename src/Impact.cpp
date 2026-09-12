@@ -1,7 +1,6 @@
 #include "Impact.hpp"
 
 #include "Commit.hpp"
-#include "Diff.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
@@ -24,7 +23,8 @@ void collect_snapshot(
     const std::string& tree_id,
     const std::string& prefix,
     Snapshot& snapshot
-) {
+)
+{
     const Tree tree =
         Tree::deserialize(
             database.read(tree_id)
@@ -39,14 +39,12 @@ void collect_snapshot(
                 : prefix + "/" + entry.name;
 
         if (entry.is_tree) {
-
             collect_snapshot(
                 database,
                 entry.object_id,
                 path,
                 snapshot
             );
-
         }
         else {
             snapshot[path] =
@@ -55,18 +53,45 @@ void collect_snapshot(
     }
 }
 
+void collect_directories(
+    const std::vector<std::string>& files,
+    std::set<std::string>& directories
+)
+{
+    for (const auto& file : files) {
+        std::string::size_type position =
+            file.find('/');
+
+        while (position != std::string::npos) {
+            directories.insert(
+                file.substr(
+                    0,
+                    position
+                )
+            );
+
+            position =
+                file.find(
+                    '/',
+                    position + 1
+                );
+        }
+    }
 }
+
+} // namespace
 
 Impact::Impact(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
 std::string Impact::render(
     const std::string& commit_id
-) const {
-
+) const
+{
     if (commit_id.empty()) {
         throw std::invalid_argument(
             "Commit ID cannot be empty"
@@ -100,8 +125,7 @@ std::string Impact::render(
     Snapshot parent;
 
     if (!commit.parent_ids().empty()) {
-
-        const std::string parent_id =
+        const std::string& parent_id =
             commit.parent_ids().front();
 
         const Commit parent_commit =
@@ -130,22 +154,18 @@ std::string Impact::render(
         if (iterator == parent.end()) {
             added.push_back(path);
         }
-        else if (
-            iterator->second != object_id
-        ) {
+        else if (iterator->second != object_id) {
             modified.push_back(path);
         }
     }
 
-    for (const auto& [path, object_id] :
+    for (const auto& entry :
          parent) {
 
-        (void)object_id;
-
-        if (current.find(path) ==
+        if (current.find(entry.first) ==
             current.end()) {
 
-            removed.push_back(path);
+            removed.push_back(entry.first);
         }
     }
 
@@ -166,41 +186,20 @@ std::string Impact::render(
 
     std::set<std::string> directories;
 
-    auto collect_directories =
-        [&directories](
-            const std::vector<std::string>& files
-        ) {
+    collect_directories(
+        added,
+        directories
+    );
 
-            for (const auto& file :
-                 files) {
+    collect_directories(
+        removed,
+        directories
+    );
 
-                std::string::size_type position =
-                    file.find('/');
-
-                while (
-                    position !=
-                    std::string::npos
-                ) {
-
-                    directories.insert(
-                        file.substr(
-                            0,
-                            position
-                        )
-                    );
-
-                    position =
-                        file.find(
-                            '/',
-                            position + 1
-                        );
-                }
-            }
-        };
-
-    collect_directories(added);
-    collect_directories(removed);
-    collect_directories(modified);
+    collect_directories(
+        modified,
+        directories
+    );
 
     std::ostringstream output;
 
@@ -233,7 +232,6 @@ std::string Impact::render(
         output << "  (initial commit)\n";
     }
     else {
-
         for (const auto& parent_id :
              commit.parent_ids()) {
 
@@ -243,6 +241,11 @@ std::string Impact::render(
                 << '\n';
         }
     }
+
+    const std::size_t total_changes =
+        added.size() +
+        modified.size() +
+        removed.size();
 
     output
         << "\nSummary:\n"
@@ -256,11 +259,7 @@ std::string Impact::render(
         << removed.size()
         << "\n"
         << "  Total:     "
-        << (
-            added.size() +
-            modified.size() +
-            removed.size()
-        )
+        << total_changes
         << "\n";
 
     output << "\nAffected files:\n";
@@ -300,7 +299,6 @@ std::string Impact::render(
         output << "  (root only)\n";
     }
     else {
-
         for (const auto& directory :
              directories) {
 

@@ -1,5 +1,4 @@
 #include "Commit.hpp"
-#include "Hash.hpp"
 #include "ObjectDatabase.hpp"
 #include "Repository.hpp"
 
@@ -8,7 +7,8 @@
 #include <iostream>
 #include <string>
 
-void test_commit_deserialization() {
+void test_commit_deserialization()
+{
     const std::string serialized =
         "tree tree123\n"
         "parent parent456\n"
@@ -16,7 +16,7 @@ void test_commit_deserialization() {
         "\n"
         "Add feature\n";
 
-    Commit commit =
+    const Commit commit =
         Commit::deserialize(serialized);
 
     assert(commit.tree_id() == "tree123");
@@ -25,14 +25,15 @@ void test_commit_deserialization() {
     assert(commit.message() == "Add feature");
 }
 
-void test_initial_commit_deserialization() {
+void test_initial_commit_deserialization()
+{
     const std::string serialized =
         "tree tree123\n"
         "author Sarina\n"
         "\n"
         "Initial commit\n";
 
-    Commit commit =
+    const Commit commit =
         Commit::deserialize(serialized);
 
     assert(commit.tree_id() == "tree123");
@@ -41,7 +42,8 @@ void test_initial_commit_deserialization() {
     assert(commit.message() == "Initial commit");
 }
 
-void test_multiline_message() {
+void test_multiline_message()
+{
     const std::string serialized =
         "tree tree123\n"
         "parent parent456\n"
@@ -52,7 +54,7 @@ void test_multiline_message() {
         "This commit adds a new feature.\n"
         "It also includes tests.\n";
 
-    Commit commit =
+    const Commit commit =
         Commit::deserialize(serialized);
 
     assert(
@@ -64,7 +66,8 @@ void test_multiline_message() {
     );
 }
 
-void test_round_trip() {
+void test_round_trip()
+{
     Commit original(
         "tree123",
         "parent456",
@@ -75,7 +78,7 @@ void test_round_trip() {
     const std::string serialized =
         original.serialize();
 
-    Commit restored =
+    const Commit restored =
         Commit::deserialize(serialized);
 
     assert(
@@ -84,13 +87,13 @@ void test_round_trip() {
     );
 }
 
-void test_commit_stored_and_read() {
-    const std::filesystem::path root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-log-object-test";
+void test_commit_stored_and_read()
+{
+    const auto root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-log-object-test";
 
     std::filesystem::remove_all(root);
-
     std::filesystem::create_directories(
         root / ".mini-git"
     );
@@ -114,7 +117,7 @@ void test_commit_stored_and_read() {
     const std::string stored_data =
         database.read(object_id);
 
-    Commit restored =
+    const Commit restored =
         Commit::deserialize(stored_data);
 
     assert(restored.tree_id() == "tree123");
@@ -125,13 +128,13 @@ void test_commit_stored_and_read() {
     std::filesystem::remove_all(root);
 }
 
-void test_commit_history_chain() {
-    const std::filesystem::path root =
-        std::filesystem::temp_directory_path() /
-        "mini-git-log-history-test";
+void test_commit_history_chain()
+{
+    const auto root =
+        std::filesystem::temp_directory_path()
+        / "mini-git-log-history-test";
 
     std::filesystem::remove_all(root);
-
     std::filesystem::create_directories(
         root / ".mini-git" / "objects"
     );
@@ -199,7 +202,8 @@ void test_commit_history_chain() {
     std::filesystem::remove_all(root);
 }
 
-int main() {
+int main()
+{
     test_commit_deserialization();
     test_initial_commit_deserialization();
     test_multiline_message();

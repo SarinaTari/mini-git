@@ -1,6 +1,5 @@
 #include "GarbageCollector.hpp"
 
-#include "ObjectDatabase.hpp"
 #include "Reachability.hpp"
 
 #include <filesystem>
@@ -9,7 +8,8 @@
 GarbageCollector::GarbageCollector(
     const std::filesystem::path& git_directory
 )
-    : git_directory_(git_directory) {
+    : git_directory_(git_directory)
+{
 }
 
 GarbageCollectionReport
@@ -17,16 +17,12 @@ GarbageCollector::preview() const
 {
     GarbageCollectionReport report;
 
-    Reachability reachability(
+    const Reachability reachability(
         git_directory_
     );
 
     report.unreachable_objects =
         reachability.unreachable_objects();
-
-    ObjectDatabase database(
-        git_directory_
-    );
 
     for (const auto& object_id :
          report.unreachable_objects) {
@@ -72,9 +68,7 @@ std::string GarbageCollector::render() const
         << report.reclaimable_bytes
         << " bytes\n";
 
-    if (
-        report.unreachable_objects.empty()
-    ) {
+    if (report.unreachable_objects.empty()) {
         output
             << "\nNothing would be removed.\n";
     }

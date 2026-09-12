@@ -2,7 +2,8 @@
 
 #include <string>
 
-enum class ObjectType {
+enum class ObjectType
+{
     Blob,
     Tree,
     Commit

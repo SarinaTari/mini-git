@@ -6,7 +6,8 @@
 #include <filesystem>
 #include <string>
 
-class TreeBuilder {
+class TreeBuilder
+{
 public:
     explicit TreeBuilder(
         ObjectDatabase& database

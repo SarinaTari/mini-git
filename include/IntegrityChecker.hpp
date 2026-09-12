@@ -1,30 +1,26 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <vector>
 
-struct IntegrityReport {
-
+struct IntegrityReport
+{
     std::size_t total_objects = 0;
-
     std::size_t valid_objects = 0;
 
     std::vector<std::string> corrupted_objects;
-
     std::vector<std::string> missing_objects;
-
     std::vector<std::string> invalid_references;
-
     std::vector<std::string> unreachable_objects;
 
     bool repository_consistent() const;
 };
 
-class IntegrityChecker {
-
+class IntegrityChecker
+{
 public:
-
     explicit IntegrityChecker(
         const std::filesystem::path& git_directory
     );
@@ -34,7 +30,6 @@ public:
     std::string render() const;
 
 private:
-
     bool verify_object(
         const std::string& object_id
     ) const;
@@ -52,5 +47,4 @@ private:
     ) const;
 
     std::filesystem::path git_directory_;
-
 };

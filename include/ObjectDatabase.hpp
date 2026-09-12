@@ -6,10 +6,9 @@
 #include <string>
 #include <vector>
 
-class ObjectDatabase {
-
+class ObjectDatabase
+{
 public:
-
     explicit ObjectDatabase(
         const std::filesystem::path& git_dir
     );
@@ -29,7 +28,5 @@ public:
     std::vector<std::string> object_ids() const;
 
 private:
-
     std::filesystem::path objects_dir_;
-
 };

@@ -8,9 +8,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-impact-tests";
@@ -27,7 +28,7 @@ int main() {
 
     Blob first_blob("first");
 
-    const auto first_blob_id =
+    const std::string first_blob_id =
         database.store(first_blob);
 
     Tree first_tree;
@@ -38,7 +39,7 @@ int main() {
         false
     });
 
-    const auto first_tree_id =
+    const std::string first_tree_id =
         database.store(first_tree);
 
     Commit first_commit(
@@ -48,12 +49,12 @@ int main() {
         "Initial commit"
     );
 
-    const auto first_commit_id =
+    const std::string first_commit_id =
         database.store(first_commit);
 
     Blob second_blob("second");
 
-    const auto second_blob_id =
+    const std::string second_blob_id =
         database.store(second_blob);
 
     Tree second_tree;
@@ -70,7 +71,7 @@ int main() {
         false
     });
 
-    const auto second_tree_id =
+    const std::string second_tree_id =
         database.store(second_tree);
 
     Commit second_commit(
@@ -80,7 +81,7 @@ int main() {
         "Update project"
     );
 
-    const auto second_commit_id =
+    const std::string second_commit_id =
         database.store(second_commit);
 
     repository.update_branch(
@@ -90,7 +91,7 @@ int main() {
 
     Impact impact(repository);
 
-    const auto output =
+    const std::string output =
         impact.render(second_commit_id);
 
     assert(

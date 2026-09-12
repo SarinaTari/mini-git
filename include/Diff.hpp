@@ -5,11 +5,13 @@
 #include <filesystem>
 #include <map>
 #include <string>
+#include <vector>
 
 class Repository;
 class ObjectDatabase;
 
-class Diff {
+class Diff
+{
 public:
     explicit Diff(
         const Repository& repository

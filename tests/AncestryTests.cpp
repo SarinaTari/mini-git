@@ -7,6 +7,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -26,7 +27,7 @@ int main()
 
     Tree tree;
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit first(
@@ -36,7 +37,7 @@ int main()
         "First"
     );
 
-    const auto first_id =
+    const std::string first_id =
         database.store(first);
 
     Commit second(
@@ -46,7 +47,7 @@ int main()
         "Second"
     );
 
-    const auto second_id =
+    const std::string second_id =
         database.store(second);
 
     Commit third(
@@ -56,7 +57,7 @@ int main()
         "Third"
     );
 
-    const auto third_id =
+    const std::string third_id =
         database.store(third);
 
     Ancestry ancestry(
@@ -87,6 +88,13 @@ int main()
     assert(
         !ancestry.is_ancestor(
             third_id,
+            first_id
+        )
+    );
+
+    assert(
+        ancestry.is_ancestor(
+            first_id,
             first_id
         )
     );

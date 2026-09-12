@@ -9,12 +9,14 @@
 Blob::Blob(
     std::string content
 )
-    : content_(std::move(content)) {
+    : content_(std::move(content))
+{
 }
 
 Blob Blob::from_file(
     const std::filesystem::path& path
-) {
+)
+{
     return Blob(
         FileReader::read(path)
     );
@@ -22,11 +24,13 @@ Blob Blob::from_file(
 
 Blob Blob::deserialize(
     const std::string& data
-) {
+)
+{
     const std::size_t separator =
         data.find('\0');
 
-    if (separator == std::string::npos) {
+    if (separator == std::string::npos)
+    {
         throw std::runtime_error(
             "Invalid blob object"
         );
@@ -38,7 +42,8 @@ Blob Blob::deserialize(
             separator
         );
 
-    if (header.rfind("blob ", 0) != 0) {
+    if (header.rfind("blob ", 0) != 0)
+    {
         throw std::runtime_error(
             "Invalid blob header"
         );
@@ -49,11 +54,25 @@ Blob Blob::deserialize(
 
     std::size_t expected_size = 0;
 
-    try {
+    try
+    {
+        std::size_t parsed_characters = 0;
+
         expected_size =
-            std::stoull(size_text);
+            std::stoull(
+                size_text,
+                &parsed_characters
+            );
+
+        if (parsed_characters != size_text.size())
+        {
+            throw std::runtime_error(
+                "Invalid blob size"
+            );
+        }
     }
-    catch (...) {
+    catch (const std::exception&)
+    {
         throw std::runtime_error(
             "Invalid blob size"
         );
@@ -64,7 +83,8 @@ Blob Blob::deserialize(
             separator + 1
         );
 
-    if (content.size() != expected_size) {
+    if (content.size() != expected_size)
+    {
         throw std::runtime_error(
             "Blob size mismatch"
         );
@@ -73,17 +93,20 @@ Blob Blob::deserialize(
     return Blob(content);
 }
 
-const std::string& Blob::content() const {
+const std::string& Blob::content() const
+{
     return content_;
 }
 
-std::string Blob::serialize() const {
+std::string Blob::serialize() const
+{
     std::ostringstream output;
 
-    output << "blob "
-           << content_.size()
-           << '\0'
-           << content_;
+    output
+        << "blob "
+        << content_.size()
+        << '\0'
+        << content_;
 
     return output.str();
 }

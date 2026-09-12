@@ -4,10 +4,9 @@
 #include <set>
 #include <string>
 
-class Reachability {
-
+class Reachability
+{
 public:
-
     explicit Reachability(
         const std::filesystem::path& git_directory
     );
@@ -17,7 +16,6 @@ public:
     std::set<std::string> unreachable_objects() const;
 
 private:
-
     void visit_commit(
         const std::string& commit_id,
         std::set<std::string>& visited
@@ -29,5 +27,4 @@ private:
     ) const;
 
     std::filesystem::path git_directory_;
-
 };

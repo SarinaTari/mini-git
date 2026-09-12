@@ -12,9 +12,10 @@ Commit::Commit(
 )
     : tree_id_(std::move(tree_id)),
       author_(std::move(author)),
-      message_(std::move(message)) {
-
-    if (!parent_id.empty()) {
+      message_(std::move(message))
+{
+    if (!parent_id.empty())
+    {
         parent_ids_.push_back(
             std::move(parent_id)
         );
@@ -30,45 +31,45 @@ Commit::Commit(
     : tree_id_(std::move(tree_id)),
       parent_ids_(std::move(parent_ids)),
       author_(std::move(author)),
-      message_(std::move(message)) {
+      message_(std::move(message))
+{
 }
 
-std::string Commit::serialize() const {
+std::string Commit::serialize() const
+{
     std::ostringstream output;
 
     output
         << "tree "
         << tree_id_
-        << "\n";
+        << '\n';
 
-    for (const auto& parent :
-         parent_ids_) {
-
-        if (!parent.empty()) {
+    for (const auto& parent : parent_ids_)
+    {
+        if (!parent.empty())
+        {
             output
                 << "parent "
                 << parent
-                << "\n";
+                << '\n';
         }
     }
 
     output
         << "author "
         << author_
-        << "\n";
-
-    output << "\n";
-
-    output
+        << '\n'
+        << '\n'
         << message_
-        << "\n";
+        << '\n';
 
     return output.str();
 }
 
 Commit Commit::deserialize(
     const std::string& data
-) {
+)
+{
     std::istringstream input(data);
 
     std::string line;
@@ -80,32 +81,39 @@ Commit Commit::deserialize(
 
     bool reading_message = false;
 
-    while (std::getline(input, line)) {
-        if (!reading_message) {
-            if (line.empty()) {
+    while (std::getline(input, line))
+    {
+        if (!reading_message)
+        {
+            if (line.empty())
+            {
                 reading_message = true;
                 continue;
             }
 
-            if (line.rfind("tree ", 0) == 0) {
+            if (line.rfind("tree ", 0) == 0)
+            {
                 tree_id =
                     line.substr(5);
 
                 continue;
             }
 
-            if (line.rfind("parent ", 0) == 0) {
+            if (line.rfind("parent ", 0) == 0)
+            {
                 const std::string parent =
                     line.substr(7);
 
-                if (!parent.empty()) {
+                if (!parent.empty())
+                {
                     parent_ids.push_back(parent);
                 }
 
                 continue;
             }
 
-            if (line.rfind("author ", 0) == 0) {
+            if (line.rfind("author ", 0) == 0)
+            {
                 author =
                     line.substr(7);
 
@@ -118,20 +126,23 @@ Commit Commit::deserialize(
             );
         }
 
-        if (!message.empty()) {
+        if (!message.empty())
+        {
             message += '\n';
         }
 
         message += line;
     }
 
-    if (tree_id.empty()) {
+    if (tree_id.empty())
+    {
         throw std::runtime_error(
             "Commit is missing tree"
         );
     }
 
-    if (author.empty()) {
+    if (author.empty())
+    {
         throw std::runtime_error(
             "Commit is missing author"
         );
@@ -145,14 +156,17 @@ Commit Commit::deserialize(
     );
 }
 
-const std::string& Commit::tree_id() const {
+const std::string& Commit::tree_id() const
+{
     return tree_id_;
 }
 
-const std::string& Commit::parent_id() const {
+const std::string& Commit::parent_id() const
+{
     static const std::string empty;
 
-    if (parent_ids_.empty()) {
+    if (parent_ids_.empty())
+    {
         return empty;
     }
 
@@ -160,14 +174,17 @@ const std::string& Commit::parent_id() const {
 }
 
 const std::vector<std::string>&
-Commit::parent_ids() const {
+Commit::parent_ids() const
+{
     return parent_ids_;
 }
 
-const std::string& Commit::author() const {
+const std::string& Commit::author() const
+{
     return author_;
 }
 
-const std::string& Commit::message() const {
+const std::string& Commit::message() const
+{
     return message_;
 }

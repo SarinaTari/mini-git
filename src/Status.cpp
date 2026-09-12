@@ -12,10 +12,12 @@ Status::Status(
     Index& index
 )
     : root_(root),
-      index_(index) {
+      index_(index)
+{
 }
 
-StatusResult Status::collect() {
+StatusResult Status::collect()
+{
     StatusResult result;
 
     collect_modified(result);
@@ -27,13 +29,18 @@ StatusResult Status::collect() {
 
 void Status::collect_modified(
     StatusResult& result
-) {
-    for (const auto& entry : index_.entries()) {
+)
+{
+    for (const auto& entry :
+         index_.entries()) {
         const std::filesystem::path file_path =
             root_ / entry.path;
 
         if (!std::filesystem::exists(file_path)) {
-            result.deleted.push_back(entry.path);
+            result.deleted.push_back(
+                entry.path
+            );
+
             continue;
         }
 
@@ -41,7 +48,7 @@ void Status::collect_modified(
             continue;
         }
 
-        Blob blob =
+        const Blob blob =
             Blob::from_file(file_path);
 
         const std::string current_object_id =
@@ -62,7 +69,8 @@ void Status::collect_modified(
 
 void Status::collect_untracked(
     StatusResult& result
-) {
+)
+{
     std::filesystem::recursive_directory_iterator iterator(
         root_
     );
@@ -106,16 +114,15 @@ void Status::collect_untracked(
 
 void Status::collect_merge_state(
     StatusResult& result
-) {
+)
+{
     const auto git_directory =
         root_ / ".mini-git";
 
     const auto merge_head =
         git_directory / "MERGE_HEAD";
 
-    if (!std::filesystem::exists(
-            merge_head
-        )) {
+    if (!std::filesystem::exists(merge_head)) {
         return;
     }
 
@@ -131,10 +138,12 @@ void Status::collect_merge_state(
 
     std::string path;
 
-    while (std::getline(
-        conflicts_file,
-        path
-    )) {
+    while (
+        std::getline(
+            conflicts_file,
+            path
+        )
+    ) {
         if (!path.empty()) {
             result.conflicts.push_back(path);
         }

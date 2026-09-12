@@ -8,6 +8,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -25,11 +26,9 @@ int main()
         repository.git_directory()
     );
 
-    Blob blob(
-        "fsck content"
-    );
+    Blob blob("fsck content");
 
-    const auto blob_id =
+    const std::string blob_id =
         database.store(blob);
 
     Tree tree;
@@ -40,7 +39,7 @@ int main()
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -50,7 +49,7 @@ int main()
         "Fsck test"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -62,7 +61,7 @@ int main()
         repository.git_directory()
     );
 
-    const auto report =
+    const IntegrityReport report =
         checker.check();
 
     assert(
@@ -71,6 +70,10 @@ int main()
 
     assert(
         report.total_objects == 3
+    );
+
+    assert(
+        report.valid_objects == 3
     );
 
     assert(

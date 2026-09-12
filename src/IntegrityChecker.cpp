@@ -4,10 +4,11 @@
 #include "Commit.hpp"
 #include "Hash.hpp"
 #include "ObjectDatabase.hpp"
+#include "ObjectType.hpp"
 #include "Reachability.hpp"
+#include "Reference.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
-#include "ObjectType.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -23,13 +24,18 @@ bool IntegrityReport::repository_consistent() const
 IntegrityChecker::IntegrityChecker(
     const std::filesystem::path& git_directory
 )
-    : git_directory_(git_directory) {
+    : git_directory_(git_directory)
+{
 }
 
 bool IntegrityChecker::verify_object(
     const std::string& object_id
 ) const
 {
+    if (object_id.empty()) {
+        return false;
+    }
+
     ObjectDatabase database(
         git_directory_
     );
@@ -60,25 +66,32 @@ void IntegrityChecker::verify_commit_relationships(
                 database.read(object_id)
             );
 
-        if (
-            commit.tree_id().empty() ||
-            !database.exists(commit.tree_id())
-        ) {
-            missing.push_back(
-                commit.tree_id()
-            );
+        const std::string tree_id =
+            commit.tree_id();
+
+        if (tree_id.empty()) {
+            invalid.push_back(object_id);
         }
-        else if (
-            !verify_object(commit.tree_id())
-        ) {
-            invalid.push_back(
-                commit.tree_id()
-            );
+        else if (!database.exists(tree_id)) {
+            missing.push_back(tree_id);
+        }
+        else if (!verify_object(tree_id)) {
+            invalid.push_back(tree_id);
+        }
+        else {
+            const std::string tree_data =
+                database.read(tree_id);
+
+            if (
+                detect_object_type(tree_data) !=
+                ObjectType::Tree
+            ) {
+                invalid.push_back(tree_id);
+            }
         }
 
         for (const auto& parent :
              commit.parent_ids()) {
-
             if (parent.empty()) {
                 continue;
             }
@@ -89,6 +102,17 @@ void IntegrityChecker::verify_commit_relationships(
             }
 
             if (!verify_object(parent)) {
+                invalid.push_back(parent);
+                continue;
+            }
+
+            const std::string parent_data =
+                database.read(parent);
+
+            if (
+                detect_object_type(parent_data) !=
+                ObjectType::Commit
+            ) {
                 invalid.push_back(parent);
             }
         }
@@ -126,11 +150,28 @@ void IntegrityChecker::verify_tree_relationships(
                 missing.push_back(
                     entry.object_id
                 );
-
                 continue;
             }
 
             if (!verify_object(entry.object_id)) {
+                invalid.push_back(
+                    entry.object_id
+                );
+                continue;
+            }
+
+            const std::string child_data =
+                database.read(entry.object_id);
+
+            const ObjectType expected_type =
+                entry.is_tree
+                    ? ObjectType::Tree
+                    : ObjectType::Blob;
+
+            if (
+                detect_object_type(child_data) !=
+                expected_type
+            ) {
                 invalid.push_back(
                     entry.object_id
                 );
@@ -157,19 +198,16 @@ IntegrityReport IntegrityChecker::check() const
         objects.size();
 
     for (const auto& object_id :
-        objects) {
+         objects) {
 
         if (!verify_object(object_id)) {
-
             report.corrupted_objects.push_back(
                 object_id
             );
-
             continue;
         }
 
         try {
-
             const std::string data =
                 database.read(object_id);
 
@@ -177,16 +215,11 @@ IntegrityReport IntegrityChecker::check() const
                 detect_object_type(data);
 
             switch (type) {
-
-                case ObjectType::Blob: {
-
+                case ObjectType::Blob:
                     (void)Blob::deserialize(data);
-
                     break;
-                }
 
-                case ObjectType::Tree: {
-
+                case ObjectType::Tree:
                     (void)Tree::deserialize(data);
 
                     verify_tree_relationships(
@@ -196,10 +229,8 @@ IntegrityReport IntegrityChecker::check() const
                     );
 
                     break;
-                }
 
-                case ObjectType::Commit: {
-
+                case ObjectType::Commit:
                     (void)Commit::deserialize(data);
 
                     verify_commit_relationships(
@@ -209,13 +240,11 @@ IntegrityReport IntegrityChecker::check() const
                     );
 
                     break;
-                }
             }
 
             ++report.valid_objects;
         }
         catch (...) {
-
             report.corrupted_objects.push_back(
                 object_id
             );
@@ -234,7 +263,28 @@ IntegrityReport IntegrityChecker::check() const
             report.missing_objects.push_back(head);
         }
         else if (!verify_object(head)) {
-            report.invalid_references.push_back(head);
+            report.invalid_references.push_back(
+                head
+            );
+        }
+        else {
+            try {
+                const ObjectType type =
+                    detect_object_type(
+                        database.read(head)
+                    );
+
+                if (type != ObjectType::Commit) {
+                    report.invalid_references.push_back(
+                        "HEAD"
+                    );
+                }
+            }
+            catch (...) {
+                report.invalid_references.push_back(
+                    "HEAD"
+                );
+            }
         }
     }
 
@@ -253,22 +303,42 @@ IntegrityReport IntegrityChecker::check() const
         const std::string target =
             reference.read();
 
+        const std::string reference_name =
+            "refs/heads/" + branch;
+
         if (target.empty()) {
             report.invalid_references.push_back(
-                "refs/heads/" + branch
+                reference_name
             );
-
             continue;
         }
 
         if (!database.exists(target)) {
-            report.missing_objects.push_back(
-                target
-            );
+            report.missing_objects.push_back(target);
+            continue;
         }
-        else if (!verify_object(target)) {
+
+        if (!verify_object(target)) {
             report.invalid_references.push_back(
-                "refs/heads/" + branch
+                reference_name
+            );
+            continue;
+        }
+
+        try {
+            if (
+                detect_object_type(
+                    database.read(target)
+                ) != ObjectType::Commit
+            ) {
+                report.invalid_references.push_back(
+                    reference_name
+                );
+            }
+        }
+        catch (...) {
+            report.invalid_references.push_back(
+                reference_name
             );
         }
     }
@@ -288,64 +358,65 @@ IntegrityReport IntegrityChecker::check() const
         const std::string target =
             reference.read();
 
+        const std::string reference_name =
+            "refs/tags/" + tag;
+
         if (target.empty()) {
             report.invalid_references.push_back(
-                "refs/tags/" + tag
+                reference_name
             );
-
             continue;
         }
 
         if (!database.exists(target)) {
-            report.missing_objects.push_back(
-                target
-            );
+            report.missing_objects.push_back(target);
+            continue;
         }
-        else if (!verify_object(target)) {
+
+        if (!verify_object(target)) {
             report.invalid_references.push_back(
-                "refs/tags/" + tag
+                reference_name
+            );
+            continue;
+        }
+
+        try {
+            if (
+                detect_object_type(
+                    database.read(target)
+                ) != ObjectType::Commit
+            ) {
+                report.invalid_references.push_back(
+                    reference_name
+                );
+            }
+        }
+        catch (...) {
+            report.invalid_references.push_back(
+                reference_name
             );
         }
     }
 
-    std::sort(
-        report.corrupted_objects.begin(),
-        report.corrupted_objects.end()
-    );
+    auto deduplicate =
+        [](std::vector<std::string>& values) {
+            std::sort(
+                values.begin(),
+                values.end()
+            );
 
-    report.corrupted_objects.erase(
-        std::unique(
-            report.corrupted_objects.begin(),
-            report.corrupted_objects.end()
-        ),
-        report.corrupted_objects.end()
-    );
+            values.erase(
+                std::unique(
+                    values.begin(),
+                    values.end()
+                ),
+                values.end()
+            );
+        };
 
-    std::sort(
-        report.missing_objects.begin(),
-        report.missing_objects.end()
-    );
-
-    report.missing_objects.erase(
-        std::unique(
-            report.missing_objects.begin(),
-            report.missing_objects.end()
-        ),
-        report.missing_objects.end()
-    );
-
-    std::sort(
-        report.invalid_references.begin(),
-        report.invalid_references.end()
-    );
-
-    report.invalid_references.erase(
-        std::unique(
-            report.invalid_references.begin(),
-            report.invalid_references.end()
-        ),
-        report.invalid_references.end()
-    );
+    deduplicate(report.corrupted_objects);
+    deduplicate(report.missing_objects);
+    deduplicate(report.invalid_references);
 
     Reachability reachability(
         git_directory_
@@ -374,70 +445,55 @@ std::string IntegrityChecker::render() const
     );
 
     output
-        << "Mini Git Repository Integrity Check\n\n";
-
-    output
+        << "Mini Git Repository Integrity Check\n\n"
         << "References:\n"
         << "  HEAD:     ";
 
-    if (repository.head_commit().empty()) {
+    const std::string head =
+        repository.head_commit();
+
+    if (head.empty()) {
         output << "(no commit)\n";
     }
     else {
         output
-            << repository.head_commit()
+            << head
             << '\n';
     }
 
     output
         << "  Branches: "
         << repository.branches().size()
-        << '\n';
-
-    output
+        << '\n'
         << "  Tags:     "
         << repository.tags().size()
-        << "\n\n";
-
-    output
+        << "\n\n"
         << "Objects:\n"
         << "  Total:       "
         << report.total_objects
-        << '\n';
-
-    output
+        << '\n'
         << "  Valid:       "
         << report.valid_objects
-        << '\n';
-
-    output
+        << '\n'
         << "  Corrupted:   "
         << report.corrupted_objects.size()
-        << '\n';
-
-    output
+        << '\n'
         << "  Missing:     "
         << report.missing_objects.size()
-        << '\n';
-
-    output
+        << '\n'
         << "  Unreachable: "
         << report.unreachable_objects.size()
-        << "\n\n";
-
-    output
+        << "\n\n"
         << "Invalid references: "
         << report.invalid_references.size()
         << '\n';
 
     if (!report.corrupted_objects.empty()) {
-
         output
             << "\nCorrupted objects:\n";
 
         for (const auto& object_id :
              report.corrupted_objects) {
-
             output
                 << "  "
                 << object_id
@@ -446,13 +502,11 @@ std::string IntegrityChecker::render() const
     }
 
     if (!report.missing_objects.empty()) {
-
         output
             << "\nMissing objects:\n";
 
         for (const auto& object_id :
              report.missing_objects) {
-
             output
                 << "  "
                 << object_id
@@ -461,13 +515,11 @@ std::string IntegrityChecker::render() const
     }
 
     if (!report.invalid_references.empty()) {
-
         output
             << "\nInvalid references:\n";
 
         for (const auto& reference :
              report.invalid_references) {
-
             output
                 << "  "
                 << reference
@@ -476,13 +528,11 @@ std::string IntegrityChecker::render() const
     }
 
     if (!report.unreachable_objects.empty()) {
-
         output
             << "\nUnreachable objects:\n";
 
         for (const auto& object_id :
              report.unreachable_objects) {
-
             output
                 << "  "
                 << object_id

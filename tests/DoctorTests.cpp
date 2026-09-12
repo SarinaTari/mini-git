@@ -8,9 +8,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-doctor-tests";
@@ -25,9 +26,20 @@ int main() {
         repository.git_directory()
     );
 
+    Blob blob("Hello, Mini Git!");
+
+    const std::string blob_id =
+        database.store(blob);
+
     Tree tree;
 
-    const auto tree_id =
+    tree.add_entry({
+        "hello.txt",
+        blob_id,
+        false
+    });
+
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -37,7 +49,7 @@ int main() {
         "Initial commit"
     );
 
-    const auto commit_id =
+    const std::string commit_id =
         database.store(commit);
 
     repository.update_branch(
@@ -47,7 +59,7 @@ int main() {
 
     Doctor doctor(repository);
 
-    const auto output =
+    const std::string output =
         doctor.render();
 
     assert(
@@ -57,6 +69,11 @@ int main() {
 
     assert(
         output.find("Health:") !=
+        std::string::npos
+    );
+
+    assert(
+        output.find("Health: GOOD") !=
         std::string::npos
     );
 

@@ -4,7 +4,8 @@
 #include <iostream>
 #include <string>
 
-void test_initial_commit() {
+void test_initial_commit()
+{
     Commit commit(
         "tree123",
         "",
@@ -40,7 +41,8 @@ void test_initial_commit() {
     );
 }
 
-void test_commit_with_parent() {
+void test_commit_with_parent()
+{
     Commit commit(
         "tree456",
         "commit123",
@@ -76,7 +78,8 @@ void test_commit_with_parent() {
     );
 }
 
-void test_different_commits_have_different_serialization() {
+void test_different_commits_have_different_serialization()
+{
     Commit first(
         "tree123",
         "",
@@ -97,7 +100,8 @@ void test_different_commits_have_different_serialization() {
     );
 }
 
-int main() {
+int main()
+{
     test_initial_commit();
     test_commit_with_parent();
     test_different_commits_have_different_serialization();

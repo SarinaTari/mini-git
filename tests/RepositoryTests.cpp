@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string>
 
 int main()
 {
@@ -27,14 +28,9 @@ int main()
 
     repository.initialize();
 
-    // --------------------------------------------------------
-    // Repository initialization
-    // --------------------------------------------------------
-
     assert(
         std::filesystem::exists(
-            repository.git_directory()
-            / "HEAD"
+            repository.git_directory() / "HEAD"
         )
     );
 
@@ -54,51 +50,29 @@ int main()
         repository.branches().empty()
     );
 
-    // --------------------------------------------------------
-    // Create ObjectDatabase
-    // --------------------------------------------------------
-
     ObjectDatabase database(
         repository.git_directory()
     );
-
-    // --------------------------------------------------------
-    // Create a real Blob object
-    // --------------------------------------------------------
 
     Blob blob("hello");
 
     const std::string blob_id =
         database.store(blob);
 
-    assert(
-        database.exists(blob_id)
-    );
-
-    // --------------------------------------------------------
-    // Create a real Tree object
-    // --------------------------------------------------------
+    assert(database.exists(blob_id));
 
     Tree tree;
 
-    tree.add_entry(
-        TreeEntry{
-            "hello.txt",
-            blob_id,
-            false
-        }
-    );
+    tree.add_entry({
+        "hello.txt",
+        blob_id,
+        false
+    });
 
     const std::string tree_id =
         database.store(tree);
 
-    assert(
-        database.exists(tree_id)
-    );
-
-    // --------------------------------------------------------
-    // Create a real Commit object
-    // --------------------------------------------------------
+    assert(database.exists(tree_id));
 
     Commit commit(
         tree_id,
@@ -110,82 +84,33 @@ int main()
     const std::string commit_id =
         database.store(commit);
 
-    assert(
-        database.exists(commit_id)
-    );
-
-    // --------------------------------------------------------
-    // Point main at the real commit
-    // --------------------------------------------------------
+    assert(database.exists(commit_id));
 
     repository.update_branch(
         "main",
         commit_id
     );
 
-    assert(
-        repository.branches().size() == 1
-    );
+    assert(repository.branches().size() == 1);
+    assert(repository.current_branch() == "main");
+    assert(repository.head_commit() == commit_id);
 
-    assert(
-        repository.current_branch() == "main"
-    );
+    repository.create_branch("feature");
 
-    assert(
-        repository.head_commit() ==
-        commit_id
-    );
+    assert(repository.branches().size() == 2);
+    assert(repository.current_branch() == "main");
+    assert(repository.head_commit() == commit_id);
 
-    // --------------------------------------------------------
-    // Create feature branch
-    // --------------------------------------------------------
+    repository.checkout("feature");
 
-    repository.create_branch(
-        "feature"
-    );
-
-    assert(
-        repository.branches().size() == 2
-    );
-
-    assert(
-        repository.current_branch() == "main"
-    );
-
-    assert(
-        repository.head_commit() ==
-        commit_id
-    );
-
-    // --------------------------------------------------------
-    // Checkout feature
-    // --------------------------------------------------------
-
-    repository.checkout(
-        "feature"
-    );
-
-    assert(
-        repository.current_branch() ==
-        "feature"
-    );
-
-    assert(
-        repository.head_commit() ==
-        commit_id
-    );
-
-    // --------------------------------------------------------
-    // Verify working tree restoration
-    // --------------------------------------------------------
+    assert(repository.current_branch() == "feature");
+    assert(repository.head_commit() == commit_id);
 
     const auto restored_file =
         test_directory / "hello.txt";
 
     assert(
-        std::filesystem::exists(
-            restored_file
-        )
+        std::filesystem::exists(restored_file)
     );
 
     std::ifstream file(
@@ -197,52 +122,25 @@ int main()
 
     std::string content;
 
-    std::getline(
-        file,
-        content
-    );
+    std::getline(file, content);
+
+    assert(content == "hello");
+
+    repository.checkout("main");
+
+    assert(repository.current_branch() == "main");
+    assert(repository.head_commit() == commit_id);
 
     assert(
-        content == "hello"
+        std::filesystem::exists(restored_file)
     );
-
-    // --------------------------------------------------------
-    // Checkout main again
-    // --------------------------------------------------------
-
-    repository.checkout(
-        "main"
-    );
-
-    assert(
-        repository.current_branch() == "main"
-    );
-
-    assert(
-        repository.head_commit() ==
-        commit_id
-    );
-
-    // --------------------------------------------------------
-    // Verify working tree after switching back
-    // --------------------------------------------------------
-
-    assert(
-        std::filesystem::exists(
-            restored_file
-        )
-    );
-
-    // --------------------------------------------------------
-    // Cleanup
-    // --------------------------------------------------------
 
     std::filesystem::remove_all(
         test_directory
     );
 
     std::cout
-        << "Repository tests passed\n";
+        << "Repository tests passed.\n";
 
     return 0;
 }

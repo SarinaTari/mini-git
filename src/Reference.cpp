@@ -1,8 +1,10 @@
 #include "Reference.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 Reference::Reference(
     const std::filesystem::path& git_directory,
@@ -26,39 +28,60 @@ std::filesystem::path Reference::path() const
 
 bool Reference::exists() const
 {
-    return std::filesystem::is_regular_file(path());
+    return std::filesystem::is_regular_file(
+        path()
+    );
 }
 
 std::string Reference::read() const
 {
     if (!exists()) {
         throw std::runtime_error(
-            "Reference does not exist: " + name_
+            "Reference does not exist: " +
+            name_
         );
     }
 
-    std::ifstream file(path());
+    std::ifstream file(
+        path()
+    );
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to open reference: " + name_
+            "Failed to open reference: " +
+            name_
         );
     }
 
     std::ostringstream buffer;
     buffer << file.rdbuf();
 
-    std::string value = buffer.str();
+    if (file.bad()) {
+        throw std::runtime_error(
+            "Failed to read reference: " +
+            name_
+        );
+    }
 
-    while (!value.empty() &&
-           (value.back() == '\n' || value.back() == '\r')) {
+    std::string value =
+        buffer.str();
+
+    while (
+        !value.empty() &&
+        (
+            value.back() == '\n' ||
+            value.back() == '\r'
+        )
+    ) {
         value.pop_back();
     }
 
     return value;
 }
 
-void Reference::write(const std::string& object_id) const
+void Reference::write(
+    const std::string& object_id
+) const
 {
     if (object_id.empty()) {
         throw std::invalid_argument(
@@ -66,24 +89,37 @@ void Reference::write(const std::string& object_id) const
         );
     }
 
-    const auto reference_path = path();
+    const auto reference_path =
+        path();
 
     std::filesystem::create_directories(
         reference_path.parent_path()
     );
 
-    std::ofstream file(reference_path);
+    std::ofstream file(
+        reference_path
+    );
 
     if (!file) {
         throw std::runtime_error(
-            "Failed to write reference: " + name_
+            "Failed to write reference: " +
+            name_
         );
     }
 
     file << object_id << '\n';
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to write reference: " +
+            name_
+        );
+    }
 }
 
-void Reference::validate_name(const std::string& name)
+void Reference::validate_name(
+    const std::string& name
+)
 {
     if (name.empty()) {
         throw std::invalid_argument(
@@ -91,26 +127,35 @@ void Reference::validate_name(const std::string& name)
         );
     }
 
-    std::filesystem::path path(name);
+    const std::filesystem::path reference_path(
+        name
+    );
 
-    if (path.is_absolute()) {
+    if (reference_path.is_absolute()) {
         throw std::invalid_argument(
             "Reference name must be relative"
         );
     }
 
-    for (const auto& component : path) {
-        const std::string part = component.string();
+    for (const auto& component :
+         reference_path) {
+        const std::string part =
+            component.string();
 
-        if (part.empty() || part == ".") {
+        if (
+            part.empty() ||
+            part == "."
+        ) {
             throw std::invalid_argument(
-                "Invalid reference name: " + name
+                "Invalid reference name: " +
+                name
             );
         }
 
         if (part == "..") {
             throw std::invalid_argument(
-                "Reference name cannot contain '..': " + name
+                "Reference name cannot contain '..': " +
+                name
             );
         }
     }

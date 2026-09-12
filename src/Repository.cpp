@@ -3,9 +3,9 @@
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
 #include "Tree.hpp"
-#include "Index.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -49,6 +49,12 @@ void Repository::initialize()
     }
 
     head_file << "ref: refs/heads/main\n";
+
+    if (!head_file) {
+        throw std::runtime_error(
+            "Failed to write HEAD"
+        );
+    }
 }
 
 const std::filesystem::path&
@@ -101,6 +107,12 @@ void Repository::write_head(
     }
 
     file << content << '\n';
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to write HEAD"
+        );
+    }
 }
 
 std::string Repository::head_reference() const
@@ -175,9 +187,11 @@ Repository::branches() const
     const auto heads_directory =
         git_dir_ / "refs" / "heads";
 
-    if (!std::filesystem::exists(
+    if (
+        !std::filesystem::exists(
             heads_directory
-        )) {
+        )
+    ) {
         return result;
     }
 
@@ -218,7 +232,11 @@ Repository::tags() const
     const auto tags_directory =
         git_dir_ / "refs" / "tags";
 
-    if (!std::filesystem::exists(tags_directory)) {
+    if (
+        !std::filesystem::exists(
+            tags_directory
+        )
+    ) {
         return result;
     }
 
@@ -274,7 +292,8 @@ std::string Repository::tag_commit(
 
     if (!reference.exists()) {
         throw std::runtime_error(
-            "Tag does not exist: " + tag
+            "Tag does not exist: " +
+            tag
         );
     }
 
@@ -299,7 +318,8 @@ void Repository::create_tag(
 
     if (reference.exists()) {
         throw std::runtime_error(
-            "Tag already exists: " + tag
+            "Tag already exists: " +
+            tag
         );
     }
 
@@ -320,7 +340,8 @@ void Repository::create_tag(
 
     if (!database.exists(target)) {
         throw std::runtime_error(
-            "Commit does not exist: " + target
+            "Commit does not exist: " +
+            target
         );
     }
 
@@ -332,7 +353,8 @@ void Repository::create_tag(
     }
     catch (const std::exception&) {
         throw std::runtime_error(
-            "Tag target is not a valid commit: " + target
+            "Tag target is not a valid commit: " +
+            target
         );
     }
 
@@ -356,13 +378,15 @@ void Repository::delete_tag(
 
     if (!reference.exists()) {
         throw std::runtime_error(
-            "Tag does not exist: " + tag
+            "Tag does not exist: " +
+            tag
         );
     }
 
     if (!std::filesystem::remove(reference.path())) {
         throw std::runtime_error(
-            "Failed to delete tag: " + tag
+            "Failed to delete tag: " +
+            tag
         );
     }
 }
@@ -413,7 +437,8 @@ void Repository::create_branch(
 
     if (reference.exists()) {
         throw std::runtime_error(
-            "Branch already exists: " + branch
+            "Branch already exists: " +
+            branch
         );
     }
 
@@ -424,12 +449,6 @@ void Repository::verify_checkout_is_safe(
     const std::string& target_commit
 ) const
 {
-    /*
-     * Phase 16 prevents branch switching while
-     * an unresolved merge is active.
-     *
-     * This avoids silently discarding merge state.
-     */
     (void)target_commit;
 
     if (merge_in_progress()) {
@@ -463,79 +482,72 @@ void Repository::checkout_tree_recursive(
     const std::string data =
         database.read(tree_id);
 
-    std::istringstream stream(data);
+    const Tree tree =
+        Tree::deserialize(data);
 
-    std::string type;
-    std::string object_id;
-    std::string name;
-
-    while (
-        stream >> type
-        >> object_id
-        >> name
-    ) {
+    for (const auto& entry :
+         tree.entries()) {
         const auto target =
-            directory / name;
+            directory / entry.name;
 
-        if (type == "blob") {
-            const std::string blob_data =
-                database.read(object_id);
-
-            const std::size_t separator =
-                blob_data.find('\0');
-
-            if (
-                separator ==
-                std::string::npos
-            ) {
-                throw std::runtime_error(
-                    "Invalid blob object: " +
-                    object_id
-                );
-            }
-
-            const std::string content =
-                blob_data.substr(
-                    separator + 1
-                );
-
-            std::filesystem::create_directories(
-                target.parent_path()
-            );
-
-            std::ofstream file(
-                target,
-                std::ios::binary
-            );
-
-            if (!file) {
-                throw std::runtime_error(
-                    "Failed to restore file: " +
-                    target.string()
-                );
-            }
-
-            file.write(
-                content.data(),
-                static_cast<std::streamsize>(
-                    content.size()
-                )
-            );
-        }
-        else if (type == "tree") {
+        if (entry.is_tree) {
             std::filesystem::create_directories(
                 target
             );
 
             checkout_tree_recursive(
-                object_id,
+                entry.object_id,
                 target
             );
+
+            continue;
         }
-        else {
+
+        const std::string blob_data =
+            database.read(entry.object_id);
+
+        const std::size_t separator =
+            blob_data.find('\0');
+
+        if (separator == std::string::npos) {
             throw std::runtime_error(
-                "Invalid tree entry type: " +
-                type
+                "Invalid blob object: " +
+                entry.object_id
+            );
+        }
+
+        const std::string content =
+            blob_data.substr(
+                separator + 1
+            );
+
+        std::filesystem::create_directories(
+            target.parent_path()
+        );
+
+        std::ofstream file(
+            target,
+            std::ios::binary
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to restore file: " +
+                target.string()
+            );
+        }
+
+        file.write(
+            content.data(),
+            static_cast<std::streamsize>(
+                content.size()
+            )
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write restored file: " +
+                target.string()
             );
         }
     }
@@ -584,6 +596,16 @@ void Repository::restore_commit(
             commit_data
         );
 
+    /*
+     * Validate the target tree before touching the working tree.
+     * This prevents a malformed commit/tree from causing an
+     * immediate destructive cleanup.
+     */
+    const std::string tree_data =
+        database.read(commit.tree_id());
+
+    (void)Tree::deserialize(tree_data);
+
     remove_working_tree_files();
 
     checkout_tree(
@@ -624,10 +646,11 @@ void Repository::add_tree_to_index(
     const std::string data =
         database.read(tree_id);
 
-    Tree tree =
+    const Tree tree =
         Tree::deserialize(data);
 
-    for (const auto& entry : tree.entries()) {
+    for (const auto& entry :
+         tree.entries()) {
         const auto relative_path =
             relative_directory / entry.name;
 
@@ -787,6 +810,12 @@ void Repository::begin_merge_state(
         }
 
         file << merge_head << '\n';
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write MERGE_HEAD"
+            );
+        }
     }
 
     {
@@ -801,6 +830,12 @@ void Repository::begin_merge_state(
         }
 
         file << original_head << '\n';
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write MERGE_ORIG_HEAD"
+            );
+        }
     }
 
     {
@@ -815,6 +850,12 @@ void Repository::begin_merge_state(
         }
 
         file << message;
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write MERGE_MSG"
+            );
+        }
     }
 
     {
@@ -828,8 +869,15 @@ void Repository::begin_merge_state(
             );
         }
 
-        for (const auto& path : conflicts) {
+        for (const auto& path :
+             conflicts) {
             file << path << '\n';
+        }
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write MERGE_CONFLICTS"
+            );
         }
     }
 }
@@ -867,10 +915,17 @@ void Repository::resolve_merge_conflict(
         );
     }
 
-    for (const auto& conflict : conflicts) {
+    for (const auto& conflict :
+         conflicts) {
         if (conflict != path) {
             file << conflict << '\n';
         }
+    }
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to update merge conflicts"
+        );
     }
 }
 
@@ -945,9 +1000,12 @@ void Repository::checkout(
             commit_data
         );
 
-    write_head(
-        "ref: refs/heads/" + branch
-    );
+    /*
+     * Restore the target state before changing HEAD.
+     * If object/tree restoration fails, HEAD still points to
+     * the previous branch instead of becoming inconsistent.
+     */
+    remove_working_tree_files();
 
     checkout_tree(
         commit.tree_id()
@@ -955,5 +1013,9 @@ void Repository::checkout(
 
     rebuild_index_from_tree(
         commit.tree_id()
+    );
+
+    write_head(
+        "ref: refs/heads/" + branch
     );
 }

@@ -10,13 +10,15 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string>
 
 namespace {
 
 void write_file(
     const std::filesystem::path& path,
     const std::string& content
-) {
+)
+{
     std::filesystem::create_directories(
         path.parent_path()
     );
@@ -29,6 +31,8 @@ void write_file(
     assert(file);
 
     file << content;
+
+    assert(file.good());
 }
 
 std::string create_commit(
@@ -36,7 +40,8 @@ std::string create_commit(
     const std::string& filename,
     const std::string& content,
     const std::string& parent
-) {
+)
+{
     ObjectDatabase database(
         repository.git_directory()
     );
@@ -48,13 +53,11 @@ std::string create_commit(
 
     Tree tree;
 
-    tree.add_entry(
-        TreeEntry{
-            filename,
-            blob_id,
-            false
-        }
-    );
+    tree.add_entry({
+        filename,
+        blob_id,
+        false
+    });
 
     const std::string tree_id =
         database.store(tree);
@@ -85,28 +88,13 @@ int main()
         test_directory
     );
 
-    Repository repository(
-        test_directory
-    );
-
+    Repository repository(test_directory);
     repository.initialize();
-
-    /*
-     * --------------------------------------------------------
-     * Create initial working tree
-     * --------------------------------------------------------
-     */
 
     write_file(
         test_directory / "hello.txt",
         "hello\nworld\n"
     );
-
-    /*
-     * --------------------------------------------------------
-     * Create first commit
-     * --------------------------------------------------------
-     */
 
     const std::string first_commit =
         create_commit(
@@ -121,41 +109,22 @@ int main()
         first_commit
     );
 
-    /*
-     * --------------------------------------------------------
-     * Working Tree vs Index
-     * --------------------------------------------------------
-     */
-
     Diff diff(repository);
 
     {
-        std::string output =
+        const std::string output =
             diff.working_tree_vs_index();
 
-        /*
-         * Index is empty, while the working tree
-         * contains hello.txt.
-         *
-         * Therefore the file appears as an addition.
-         */
-
         assert(
-            output.find(
-                "+hello"
-            ) != std::string::npos
+            output.find("+hello") !=
+            std::string::npos
         );
 
         assert(
-            output.find(
-                "+world"
-            ) != std::string::npos
+            output.find("+world") !=
+            std::string::npos
         );
     }
-
-    /*
-     * Modify working tree.
-     */
 
     write_file(
         test_directory / "hello.txt",
@@ -163,33 +132,19 @@ int main()
     );
 
     {
-        std::string output =
+        const std::string output =
             diff.working_tree_vs_index();
 
-        /*
-         * Index is currently empty,
-         * so the working tree file appears
-         * as an addition relative to the index.
-         */
-
         assert(
-            output.find(
-                "+hello"
-            ) != std::string::npos
+            output.find("+hello") !=
+            std::string::npos
         );
 
         assert(
-            output.find(
-                "+Mini Git"
-            ) != std::string::npos
+            output.find("+Mini Git") !=
+            std::string::npos
         );
     }
-
-    /*
-     * --------------------------------------------------------
-     * Add file to index
-     * --------------------------------------------------------
-     */
 
     Blob staged_blob(
         "hello\nMini Git\n"
@@ -208,81 +163,51 @@ int main()
 
     index.load();
 
-    index.add(
-        IndexEntry{
-            "hello.txt",
-            staged_blob_id
-        }
-    );
+    index.add({
+        "hello.txt",
+        staged_blob_id
+    });
 
     index.save();
 
-    /*
-     * Working tree and index now match.
-     */
-
     {
-        std::string output =
+        const std::string output =
             diff.working_tree_vs_index();
 
-        assert(
-            output.empty()
-        );
+        assert(output.empty());
     }
 
-    /*
-     * --------------------------------------------------------
-     * Index vs HEAD
-     * --------------------------------------------------------
-     */
-
     {
-        std::string output =
+        const std::string output =
             diff.index_vs_head();
 
         assert(
-            output.find(
-                "-world"
-            ) != std::string::npos
+            output.find("-world") !=
+            std::string::npos
         );
 
         assert(
-            output.find(
-                "+Mini Git"
-            ) != std::string::npos
+            output.find("+Mini Git") !=
+            std::string::npos
         );
     }
 
-    /*
-     * --------------------------------------------------------
-     * Commit vs working tree
-     * --------------------------------------------------------
-     */
-
     {
-        std::string output =
+        const std::string output =
             diff.commit_vs_working_tree(
                 first_commit
             );
 
         assert(
-            output.find(
-                "-world"
-            ) != std::string::npos
+            output.find("-world") !=
+            std::string::npos
         );
 
         assert(
-            output.find(
-                "+Mini Git"
-            ) != std::string::npos
+            output.find("+Mini Git") !=
+            std::string::npos
         );
     }
-
-    /*
-     * --------------------------------------------------------
-     * Create second commit
-     * --------------------------------------------------------
-     */
 
     const std::string second_commit =
         create_commit(
@@ -292,46 +217,32 @@ int main()
             first_commit
         );
 
-    /*
-     * --------------------------------------------------------
-     * Commit vs Commit
-     * --------------------------------------------------------
-     */
-
     {
-        std::string output =
+        const std::string output =
             diff.commit_vs_commit(
                 first_commit,
                 second_commit
             );
 
         assert(
-            output.find(
-                "-world"
-            ) != std::string::npos
+            output.find("-world") !=
+            std::string::npos
         );
 
         assert(
-            output.find(
-                "+Mini Git"
-            ) != std::string::npos
+            output.find("+Mini Git") !=
+            std::string::npos
         );
     }
 
-    /*
-     * Same commit should produce no diff.
-     */
-
     {
-        std::string output =
+        const std::string output =
             diff.commit_vs_commit(
                 first_commit,
                 first_commit
             );
 
-        assert(
-            output.empty()
-        );
+        assert(output.empty());
     }
 
     std::filesystem::remove_all(
@@ -339,7 +250,7 @@ int main()
     );
 
     std::cout
-        << "Diff tests passed\n";
+        << "Diff tests passed.\n";
 
     return 0;
 }

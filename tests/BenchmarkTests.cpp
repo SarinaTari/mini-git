@@ -4,9 +4,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-benchmark-tests";
@@ -19,7 +20,7 @@ int main() {
 
     Benchmark benchmark(repository);
 
-    const auto output =
+    const std::string output =
         benchmark.render();
 
     assert(

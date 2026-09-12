@@ -2,23 +2,25 @@
 
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "Reference.hpp"
 #include "Repository.hpp"
 
 #include <algorithm>
 #include <map>
 #include <set>
 #include <sstream>
-#include <stdexcept>
+#include <string>
 #include <vector>
 
 Graph::Graph(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string Graph::render() const {
-
+std::string Graph::render() const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -70,11 +72,9 @@ std::string Graph::render() const {
     std::ostringstream output;
 
     std::set<std::string> visited;
-    std::vector<std::string> pending;
-    pending.push_back(head);
+    std::vector<std::string> pending{head};
 
     while (!pending.empty()) {
-
         const std::string current =
             pending.front();
 
@@ -101,14 +101,19 @@ std::string Graph::render() const {
                 )
             );
 
-        if (!labels[current].empty()) {
+        const auto label_iterator =
+            labels.find(current);
 
+        if (
+            label_iterator != labels.end() &&
+            !label_iterator->second.empty()
+        ) {
             output << " (";
 
             bool first = true;
 
             for (const auto& label :
-                 labels[current]) {
+                 label_iterator->second) {
 
                 if (!first) {
                     output << ", ";

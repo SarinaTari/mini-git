@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -16,21 +17,25 @@
 Diff::Diff(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string Diff::working_tree_vs_index() {
+std::string Diff::working_tree_vs_index()
+{
     return compare_snapshots(
         index_snapshot(),
         working_tree_snapshot()
     );
 }
 
-std::string Diff::index_vs_head() {
+std::string Diff::index_vs_head()
+{
     const std::string head =
         repository_.head_commit();
 
-    if (head.empty()) {
+    if (head.empty())
+    {
         return compare_snapshots(
             {},
             index_snapshot()
@@ -45,8 +50,10 @@ std::string Diff::index_vs_head() {
 
 std::string Diff::commit_vs_working_tree(
     const std::string& commit_id
-) const {
-    if (commit_id.empty()) {
+) const
+{
+    if (commit_id.empty())
+    {
         throw std::invalid_argument(
             "Commit ID cannot be empty"
         );
@@ -61,9 +68,13 @@ std::string Diff::commit_vs_working_tree(
 std::string Diff::commit_vs_commit(
     const std::string& first_commit,
     const std::string& second_commit
-) const {
-    if (first_commit.empty() ||
-        second_commit.empty()) {
+) const
+{
+    if (
+        first_commit.empty() ||
+        second_commit.empty()
+    )
+    {
         throw std::invalid_argument(
             "Commit IDs cannot be empty"
         );
@@ -76,7 +87,8 @@ std::string Diff::commit_vs_commit(
 }
 
 Diff::Snapshot
-Diff::working_tree_snapshot() const {
+Diff::working_tree_snapshot() const
+{
     Snapshot snapshot;
 
     std::filesystem::recursive_directory_iterator iterator(
@@ -85,20 +97,22 @@ Diff::working_tree_snapshot() const {
 
     const std::filesystem::recursive_directory_iterator end;
 
-    while (iterator != end) {
+    while (iterator != end)
+    {
         const auto& entry = *iterator;
 
         if (
             entry.is_directory() &&
-            entry.path().filename() ==
-                ".mini-git"
-        ) {
+            entry.path().filename() == ".mini-git"
+        )
+        {
             iterator.disable_recursion_pending();
             ++iterator;
             continue;
         }
 
-        if (!entry.is_regular_file()) {
+        if (!entry.is_regular_file())
+        {
             ++iterator;
             continue;
         }
@@ -117,7 +131,8 @@ Diff::working_tree_snapshot() const {
             std::ios::binary
         );
 
-        if (!file) {
+        if (!file)
+        {
             throw std::runtime_error(
                 "Failed to read file: " +
                 entry.path().string()
@@ -125,7 +140,6 @@ Diff::working_tree_snapshot() const {
         }
 
         std::ostringstream content;
-
         content << file.rdbuf();
 
         snapshot[path] =
@@ -138,7 +152,8 @@ Diff::working_tree_snapshot() const {
 }
 
 Diff::Snapshot
-Diff::index_snapshot() const {
+Diff::index_snapshot() const
+{
     Snapshot snapshot;
 
     Index index(
@@ -151,9 +166,8 @@ Diff::index_snapshot() const {
         repository_.git_directory()
     );
 
-    for (const auto& entry :
-         index.entries()) {
-
+    for (const auto& entry : index.entries())
+    {
         const std::string data =
             database.read(
                 entry.object_id
@@ -172,7 +186,8 @@ Diff::index_snapshot() const {
 Diff::Snapshot
 Diff::commit_snapshot(
     const std::string& commit_id
-) const {
+) const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -200,7 +215,8 @@ void Diff::collect_tree_snapshot(
     const std::string& tree_id,
     const std::filesystem::path& directory,
     Snapshot& snapshot
-) const {
+) const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -211,13 +227,13 @@ void Diff::collect_tree_snapshot(
     const Tree tree =
         Tree::deserialize(tree_data);
 
-    for (const auto& entry :
-         tree.entries()) {
-
+    for (const auto& entry : tree.entries())
+    {
         const auto path =
             directory / entry.name;
 
-        if (entry.is_tree) {
+        if (entry.is_tree)
+        {
             collect_tree_snapshot(
                 entry.object_id,
                 path,
@@ -250,25 +266,26 @@ void Diff::collect_tree_snapshot(
 std::string Diff::compare_snapshots(
     const Snapshot& old_snapshot,
     const Snapshot& new_snapshot
-) const {
+) const
+{
     std::ostringstream output;
 
     std::map<std::string, bool> paths;
 
-    for (const auto& [path, content] :
-         old_snapshot) {
+    for (const auto& [path, content] : old_snapshot)
+    {
         (void)content;
         paths[path] = true;
     }
 
-    for (const auto& [path, content] :
-         new_snapshot) {
+    for (const auto& [path, content] : new_snapshot)
+    {
         (void)content;
         paths[path] = true;
     }
 
-    for (const auto& [path, unused] :
-         paths) {
+    for (const auto& [path, unused] : paths)
+    {
         (void)unused;
 
         const auto old_it =
@@ -287,7 +304,8 @@ std::string Diff::compare_snapshots(
             exists_old &&
             exists_new &&
             old_it->second == new_it->second
-        ) {
+        )
+        {
             continue;
         }
 
@@ -302,7 +320,7 @@ std::string Diff::compare_snapshots(
                 : "";
 
         output
-            << diff_file(
+            << format_diff(
                 path,
                 old_content,
                 new_content
@@ -316,7 +334,8 @@ std::string Diff::diff_file(
     const std::string& path,
     const std::string& old_content,
     const std::string& new_content
-) const {
+) const
+{
     return format_diff(
         path,
         old_content,
@@ -327,28 +346,17 @@ std::string Diff::diff_file(
 std::vector<std::string>
 Diff::split_lines(
     const std::string& content
-) {
+)
+{
     std::vector<std::string> lines;
 
     std::istringstream input(content);
 
     std::string line;
 
-    while (std::getline(input, line)) {
+    while (std::getline(input, line))
+    {
         lines.push_back(line);
-    }
-
-    if (
-        !content.empty() &&
-        content.back() == '\n'
-    ) {
-        /*
-         * getline naturally omits the empty
-         * line after a trailing newline.
-         *
-         * We intentionally do not add another
-         * logical line here.
-         */
     }
 
     return lines;
@@ -358,7 +366,8 @@ std::string Diff::format_diff(
     const std::string& path,
     const std::string& old_content,
     const std::string& new_content
-) {
+)
+{
     const auto old_lines =
         split_lines(old_content);
 
@@ -379,22 +388,17 @@ std::string Diff::format_diff(
         )
     );
 
-    for (std::size_t i = old_size;
-         i > 0;
-         --i) {
-
-        for (std::size_t j = new_size;
-             j > 0;
-             --j) {
-
-            if (
-                old_lines[i - 1] ==
-                new_lines[j - 1]
-            ) {
+    for (std::size_t i = old_size; i > 0; --i)
+    {
+        for (std::size_t j = new_size; j > 0; --j)
+        {
+            if (old_lines[i - 1] == new_lines[j - 1])
+            {
                 lcs[i - 1][j - 1] =
                     lcs[i][j] + 1;
             }
-            else {
+            else
+            {
                 lcs[i - 1][j - 1] =
                     std::max(
                         lcs[i][j - 1],
@@ -412,11 +416,10 @@ std::string Diff::format_diff(
     while (
         i < old_size &&
         j < new_size
-    ) {
-        if (
-            old_lines[i] ==
-            new_lines[j]
-        ) {
+    )
+    {
+        if (old_lines[i] == new_lines[j])
+        {
             changes.push_back(
                 " " + old_lines[i]
             );
@@ -427,14 +430,16 @@ std::string Diff::format_diff(
         else if (
             lcs[i + 1][j] >=
             lcs[i][j + 1]
-        ) {
+        )
+        {
             changes.push_back(
                 "-" + old_lines[i]
             );
 
             ++i;
         }
-        else {
+        else
+        {
             changes.push_back(
                 "+" + new_lines[j]
             );
@@ -443,7 +448,8 @@ std::string Diff::format_diff(
         }
     }
 
-    while (i < old_size) {
+    while (i < old_size)
+    {
         changes.push_back(
             "-" + old_lines[i]
         );
@@ -451,7 +457,8 @@ std::string Diff::format_diff(
         ++i;
     }
 
-    while (j < new_size) {
+    while (j < new_size)
+    {
         changes.push_back(
             "+" + new_lines[j]
         );
@@ -483,9 +490,8 @@ std::string Diff::format_diff(
         << new_size
         << " @@\n";
 
-    for (const auto& change :
-         changes) {
-
+    for (const auto& change : changes)
+    {
         output
             << change
             << '\n';

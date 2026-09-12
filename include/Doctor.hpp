@@ -4,10 +4,9 @@
 
 class Repository;
 
-class Doctor {
-
+class Doctor
+{
 public:
-
     explicit Doctor(
         const Repository& repository
     );
@@ -15,7 +14,5 @@ public:
     std::string render() const;
 
 private:
-
     const Repository& repository_;
-
 };

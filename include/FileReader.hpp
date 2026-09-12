@@ -3,7 +3,10 @@
 #include <filesystem>
 #include <string>
 
-class FileReader {
+class FileReader
+{
 public:
-    static std::string read(const std::filesystem::path& path);
+    static std::string read(
+        const std::filesystem::path& path
+    );
 };

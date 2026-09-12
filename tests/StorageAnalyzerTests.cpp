@@ -8,9 +8,10 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <string>
 
-int main() {
-
+int main()
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / "mini-git-storage-tests";
@@ -27,7 +28,7 @@ int main() {
 
     Blob blob("storage test");
 
-    const auto blob_id =
+    const std::string blob_id =
         database.store(blob);
 
     Tree tree;
@@ -38,7 +39,7 @@ int main() {
         false
     });
 
-    const auto tree_id =
+    const std::string tree_id =
         database.store(tree);
 
     Commit commit(
@@ -52,32 +53,27 @@ int main() {
 
     StorageAnalyzer analyzer(repository);
 
-    const auto output =
+    const std::string output =
         analyzer.render();
 
-    std::cout
-        << "===== STORAGE ANALYZER OUTPUT =====\n"
-        << output
-        << "===================================\n";
-
     assert(
-        output.find("Total objects:")
-        != std::string::npos
+        output.find("Total objects:") !=
+        std::string::npos
     );
 
     assert(
-        output.find("blob")
-        != std::string::npos
+        output.find("blob") !=
+        std::string::npos
     );
 
     assert(
-        output.find("commit")
-        != std::string::npos
+        output.find("commit") !=
+        std::string::npos
     );
 
     assert(
-        output.find("Total storage:")
-        != std::string::npos
+        output.find("Total storage:") !=
+        std::string::npos
     );
 
     std::filesystem::remove_all(root);

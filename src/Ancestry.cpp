@@ -4,12 +4,12 @@
 #include "ObjectDatabase.hpp"
 
 #include <queue>
-#include <stdexcept>
 
 Ancestry::Ancestry(
     const std::filesystem::path& git_directory
 )
-    : git_directory_(git_directory) {
+    : git_directory_(git_directory)
+{
 }
 
 void Ancestry::collect_ancestors(
@@ -17,11 +17,13 @@ void Ancestry::collect_ancestors(
     std::set<std::string>& ancestors
 ) const
 {
-    if (commit_id.empty()) {
+    if (commit_id.empty())
+    {
         return;
     }
 
-    if (!ancestors.insert(commit_id).second) {
+    if (!ancestors.insert(commit_id).second)
+    {
         return;
     }
 
@@ -29,7 +31,8 @@ void Ancestry::collect_ancestors(
         git_directory_
     );
 
-    if (!database.exists(commit_id)) {
+    if (!database.exists(commit_id))
+    {
         return;
     }
 
@@ -38,13 +41,15 @@ void Ancestry::collect_ancestors(
             database.read(commit_id)
         );
 
-    for (const auto& parent :
-         commit.parent_ids()) {
-
-        collect_ancestors(
-            parent,
-            ancestors
-        );
+    for (const auto& parent : commit.parent_ids())
+    {
+        if (!parent.empty())
+        {
+            collect_ancestors(
+                parent,
+                ancestors
+            );
+        }
     }
 }
 
@@ -56,11 +61,13 @@ bool Ancestry::is_ancestor(
     if (
         ancestor.empty() ||
         descendant.empty()
-    ) {
+    )
+    {
         return false;
     }
 
-    if (ancestor == descendant) {
+    if (ancestor == descendant)
+    {
         return true;
     }
 
@@ -71,28 +78,30 @@ bool Ancestry::is_ancestor(
     if (
         !database.exists(ancestor) ||
         !database.exists(descendant)
-    ) {
+    )
+    {
         return false;
     }
 
     std::queue<std::string> pending;
+    std::set<std::string> visited;
 
     pending.push(descendant);
 
-    std::set<std::string> visited;
-
-    while (!pending.empty()) {
-
+    while (!pending.empty())
+    {
         const std::string current =
             pending.front();
 
         pending.pop();
 
-        if (!visited.insert(current).second) {
+        if (!visited.insert(current).second)
+        {
             continue;
         }
 
-        if (current == ancestor) {
+        if (current == ancestor)
+        {
             return true;
         }
 
@@ -101,10 +110,10 @@ bool Ancestry::is_ancestor(
                 database.read(current)
             );
 
-        for (const auto& parent :
-             commit.parent_ids()) {
-
-            if (!parent.empty()) {
+        for (const auto& parent : commit.parent_ids())
+        {
+            if (!parent.empty())
+            {
                 pending.push(parent);
             }
         }
@@ -122,7 +131,8 @@ Ancestry::merge_base(
     if (
         first.empty() ||
         second.empty()
-    ) {
+    )
+    {
         return std::nullopt;
     }
 
@@ -133,7 +143,8 @@ Ancestry::merge_base(
     if (
         !database.exists(first) ||
         !database.exists(second)
-    ) {
+    )
+    {
         return std::nullopt;
     }
 
@@ -145,26 +156,27 @@ Ancestry::merge_base(
     );
 
     std::queue<std::string> pending;
+    std::set<std::string> visited;
 
     pending.push(second);
 
-    std::set<std::string> visited;
-
-    while (!pending.empty()) {
-
+    while (!pending.empty())
+    {
         const std::string current =
             pending.front();
 
         pending.pop();
 
-        if (!visited.insert(current).second) {
+        if (!visited.insert(current).second)
+        {
             continue;
         }
 
         if (
             first_ancestors.find(current) !=
             first_ancestors.end()
-        ) {
+        )
+        {
             return current;
         }
 
@@ -173,10 +185,10 @@ Ancestry::merge_base(
                 database.read(current)
             );
 
-        for (const auto& parent :
-             commit.parent_ids()) {
-
-            if (!parent.empty()) {
+        for (const auto& parent : commit.parent_ids())
+        {
+            if (!parent.empty())
+            {
                 pending.push(parent);
             }
         }

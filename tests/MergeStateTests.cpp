@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 
@@ -17,17 +18,16 @@ namespace {
 
 std::filesystem::path create_test_repository(
     const std::string& name
-) {
+)
+{
     const auto root =
         std::filesystem::temp_directory_path()
         / ("mini-git-merge-state-" + name);
 
     std::filesystem::remove_all(root);
-
     std::filesystem::create_directories(root);
 
     Repository repository(root);
-
     repository.initialize();
 
     return root;
@@ -36,7 +36,8 @@ std::filesystem::path create_test_repository(
 void write_file(
     const std::filesystem::path& path,
     const std::string& content
-) {
+)
+{
     std::filesystem::create_directories(
         path.parent_path()
     );
@@ -53,17 +54,24 @@ void write_file(
     }
 
     file << content;
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to write test file"
+        );
+    }
 }
 
 void stage_file(
     Repository& repository,
     const std::string& path
-) {
+)
+{
     const auto absolute =
-        repository.root() /
-        std::filesystem::path(path);
+        repository.root()
+        / std::filesystem::path(path);
 
-    Blob blob =
+    const Blob blob =
         Blob::from_file(absolute);
 
     ObjectDatabase database(
@@ -90,7 +98,8 @@ void stage_file(
 std::string commit(
     Repository& repository,
     const std::string& message
-) {
+)
+{
     Index index(
         repository.git_directory() / "index"
     );
@@ -101,9 +110,7 @@ std::string commit(
         repository.git_directory()
     );
 
-    TreeBuilder tree_builder(
-        database
-    );
+    TreeBuilder tree_builder(database);
 
     const std::string tree_id =
         tree_builder.build_from_index(
@@ -133,39 +140,25 @@ void create_conflicting_history(
     Repository& repository,
     std::string& main_commit,
     std::string& feature_commit
-) {
+)
+{
     write_file(
         repository.root() / "hello.txt",
         "base\n"
     );
 
-    stage_file(
-        repository,
-        "hello.txt"
-    );
+    stage_file(repository, "hello.txt");
+    commit(repository, "Initial");
 
-    commit(
-        repository,
-        "Initial"
-    );
-
-    repository.create_branch(
-        "feature"
-    );
-
-    repository.checkout(
-        "feature"
-    );
+    repository.create_branch("feature");
+    repository.checkout("feature");
 
     write_file(
         repository.root() / "hello.txt",
         "feature\n"
     );
 
-    stage_file(
-        repository,
-        "hello.txt"
-    );
+    stage_file(repository, "hello.txt");
 
     feature_commit =
         commit(
@@ -173,19 +166,14 @@ void create_conflicting_history(
             "Feature change"
         );
 
-    repository.checkout(
-        "main"
-    );
+    repository.checkout("main");
 
     write_file(
         repository.root() / "hello.txt",
         "main\n"
     );
 
-    stage_file(
-        repository,
-        "hello.txt"
-    );
+    stage_file(repository, "hello.txt");
 
     main_commit =
         commit(
@@ -197,9 +185,7 @@ void create_conflicting_history(
 void test_conflict_creates_merge_state()
 {
     const auto root =
-        create_test_repository(
-            "creates-state"
-        );
+        create_test_repository("creates-state");
 
     Repository repository(root);
 
@@ -227,38 +213,23 @@ void test_conflict_creates_merge_state()
     }
 
     assert(failed);
-
-    assert(
-        repository.merge_in_progress()
-    );
-
-    assert(
-        repository.merge_orig_head() ==
-        main_commit
-    );
-
-    assert(
-        repository.merge_head() ==
-        feature_commit
-    );
+    assert(repository.merge_in_progress());
+    assert(repository.merge_orig_head() == main_commit);
+    assert(repository.merge_head() == feature_commit);
 
     const auto conflicts =
         repository.merge_conflicts();
 
-    assert(
-        conflicts.size() == 1
-    );
-
-    assert(
-        conflicts[0] ==
-        "hello.txt"
-    );
+    assert(conflicts.size() == 1);
+    assert(conflicts[0] == "hello.txt");
 
     std::ifstream file(
         root / "hello.txt"
     );
 
-    std::string content{
+    assert(file);
+
+    const std::string content{
         std::istreambuf_iterator<char>(file),
         std::istreambuf_iterator<char>()
     };
@@ -289,9 +260,7 @@ void test_conflict_creates_merge_state()
 void test_continue_fails_with_unresolved_conflict()
 {
     const auto root =
-        create_test_repository(
-            "continue-fails"
-        );
+        create_test_repository("continue-fails");
 
     Repository repository(root);
 
@@ -307,10 +276,7 @@ void test_continue_fails_with_unresolved_conflict()
     Merge merge(repository);
 
     try {
-        merge.merge(
-            "feature",
-            "test"
-        );
+        merge.merge("feature", "test");
     }
     catch (const std::runtime_error&) {
     }
@@ -323,11 +289,8 @@ void test_continue_fails_with_unresolved_conflict()
     catch (const std::runtime_error& error) {
         failed = true;
 
-        const std::string message =
-            error.what();
-
         assert(
-            message.find(
+            std::string(error.what()).find(
                 "unresolved conflict"
             ) != std::string::npos
         );
@@ -341,9 +304,7 @@ void test_continue_fails_with_unresolved_conflict()
 void test_resolve_and_continue()
 {
     const auto root =
-        create_test_repository(
-            "resolve-continue"
-        );
+        create_test_repository("resolve-continue");
 
     Repository repository(root);
 
@@ -359,10 +320,7 @@ void test_resolve_and_continue()
     Merge merge(repository);
 
     try {
-        merge.merge(
-            "feature",
-            "test"
-        );
+        merge.merge("feature", "test");
     }
     catch (const std::runtime_error&) {
     }
@@ -372,10 +330,7 @@ void test_resolve_and_continue()
         "resolved\n"
     );
 
-    stage_file(
-        repository,
-        "hello.txt"
-    );
+    stage_file(repository, "hello.txt");
 
     repository.resolve_merge_conflict(
         "hello.txt"
@@ -386,28 +341,17 @@ void test_resolve_and_continue()
     );
 
     const std::string merge_id =
-        merge.continue_merge(
-            "test"
-        );
+        merge.continue_merge("test");
 
-    assert(
-        !merge_id.empty()
-    );
-
-    assert(
-        repository.head_commit() ==
-        merge_id
-    );
-
-    assert(
-        !repository.merge_in_progress()
-    );
+    assert(!merge_id.empty());
+    assert(repository.head_commit() == merge_id);
+    assert(!repository.merge_in_progress());
 
     ObjectDatabase database(
         repository.git_directory()
     );
 
-    Commit merge_commit =
+    const Commit merge_commit =
         Commit::deserialize(
             database.read(merge_id)
         );
@@ -430,16 +374,12 @@ void test_resolve_and_continue()
         root / "hello.txt"
     );
 
+    assert(file);
+
     std::string content;
+    std::getline(file, content);
 
-    std::getline(
-        file,
-        content
-    );
-
-    assert(
-        content == "resolved"
-    );
+    assert(content == "resolved");
 
     std::filesystem::remove_all(root);
 }
@@ -447,9 +387,7 @@ void test_resolve_and_continue()
 void test_abort_merge()
 {
     const auto root =
-        create_test_repository(
-            "abort"
-        );
+        create_test_repository("abort");
 
     Repository repository(root);
 
@@ -465,43 +403,28 @@ void test_abort_merge()
     Merge merge(repository);
 
     try {
-        merge.merge(
-            "feature",
-            "test"
-        );
+        merge.merge("feature", "test");
     }
     catch (const std::runtime_error&) {
     }
 
-    assert(
-        repository.merge_in_progress()
-    );
+    assert(repository.merge_in_progress());
 
     merge.abort_merge();
 
-    assert(
-        !repository.merge_in_progress()
-    );
-
-    assert(
-        repository.head_commit() ==
-        main_commit
-    );
+    assert(!repository.merge_in_progress());
+    assert(repository.head_commit() == main_commit);
 
     std::ifstream file(
         root / "hello.txt"
     );
 
+    assert(file);
+
     std::string content;
+    std::getline(file, content);
 
-    std::getline(
-        file,
-        content
-    );
-
-    assert(
-        content == "main"
-    );
+    assert(content == "main");
 
     Index index(
         repository.git_directory() / "index"
@@ -509,9 +432,7 @@ void test_abort_merge()
 
     index.load();
 
-    assert(
-        index.contains("hello.txt")
-    );
+    assert(index.contains("hello.txt"));
 
     std::filesystem::remove_all(root);
 }
@@ -519,9 +440,7 @@ void test_abort_merge()
 void test_checkout_blocked_during_merge()
 {
     const auto root =
-        create_test_repository(
-            "checkout-blocked"
-        );
+        create_test_repository("checkout-blocked");
 
     Repository repository(root);
 
@@ -537,10 +456,7 @@ void test_checkout_blocked_during_merge()
     Merge merge(repository);
 
     try {
-        merge.merge(
-            "feature",
-            "test"
-        );
+        merge.merge("feature", "test");
     }
     catch (const std::runtime_error&) {
     }
@@ -553,11 +469,8 @@ void test_checkout_blocked_during_merge()
     catch (const std::runtime_error& error) {
         failed = true;
 
-        const std::string message =
-            error.what();
-
         assert(
-            message.find(
+            std::string(error.what()).find(
                 "merge is in progress"
             ) != std::string::npos
         );
@@ -573,9 +486,7 @@ void test_checkout_blocked_during_merge()
 void test_commit_blocked_during_merge()
 {
     const auto root =
-        create_test_repository(
-            "commit-blocked"
-        );
+        create_test_repository("commit-blocked");
 
     Repository repository(root);
 
@@ -591,21 +502,12 @@ void test_commit_blocked_during_merge()
     Merge merge(repository);
 
     try {
-        merge.merge(
-            "feature",
-            "test"
-        );
+        merge.merge("feature", "test");
     }
     catch (const std::runtime_error&) {
     }
 
-    /*
-     * The repository-level merge state is sufficient
-     * for the CLI to prevent normal commits.
-     */
-    assert(
-        repository.merge_in_progress()
-    );
+    assert(repository.merge_in_progress());
 
     merge.abort_merge();
 

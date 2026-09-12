@@ -8,64 +8,63 @@
 
 ObjectType detect_object_type(
     const std::string& serialized
-) {
+)
+{
+    /*
+     * Blob objects have the form:
+     *
+     *     blob <size>\0<content>
+     *
+     * A tree entry can also begin with "blob ", so Blob
+     * deserialization must be attempted rather than relying
+     * only on the textual prefix.
+     */
     if (serialized.rfind("blob ", 0) == 0) {
-
-        /*
-         * A Tree entry also begins with "blob ", but a complete
-         * Blob has the form:
-         *
-         *     blob <size>\0<content>
-         *
-         * Therefore we first try to deserialize it as a Blob.
-         */
         try {
             (void)Blob::deserialize(serialized);
             return ObjectType::Blob;
         }
-        catch (...) {
+        catch (const std::exception&) {
+            // It may be a tree beginning with a blob entry.
         }
     }
 
     /*
-     * A Commit starts with:
+     * Commit objects begin with:
      *
      *     tree <object-id>
      *
-     * A Tree entry can also start with "tree ", so try Commit
-     * before Tree.
+     * A tree containing a tree entry also begins with "tree ",
+     * so commit deserialization is attempted first.
      */
     if (serialized.rfind("tree ", 0) == 0) {
-
         try {
             (void)Commit::deserialize(serialized);
             return ObjectType::Commit;
         }
-        catch (...) {
-        }
-
-        try {
-            (void)Tree::deserialize(serialized);
-            return ObjectType::Tree;
-        }
-        catch (...) {
+        catch (const std::exception&) {
+            // Try interpreting it as a tree below.
         }
     }
 
     /*
-     * A Tree can contain blob entries, so an object beginning
-     * with "blob " may also be a Tree. This is checked after
-     * attempting Blob deserialization.
+     * Trees consist of entries beginning with either:
+     *
+     *     blob <object-id> <name>
+     *     tree <object-id> <name>
+     *
+     * Therefore both prefixes can represent trees.
      */
     if (
-        serialized.rfind("blob ", 0) == 0
-        || serialized.rfind("tree ", 0) == 0
+        serialized.rfind("blob ", 0) == 0 ||
+        serialized.rfind("tree ", 0) == 0
     ) {
         try {
             (void)Tree::deserialize(serialized);
             return ObjectType::Tree;
         }
-        catch (...) {
+        catch (const std::exception&) {
+            // Fall through to the final error.
         }
     }
 
@@ -76,9 +75,9 @@ ObjectType detect_object_type(
 
 std::string object_type_name(
     ObjectType type
-) {
+)
+{
     switch (type) {
-
         case ObjectType::Blob:
             return "blob";
 

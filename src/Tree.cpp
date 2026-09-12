@@ -3,38 +3,63 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 void Tree::add_entry(
     TreeEntry entry
-) {
+)
+{
     entries_.push_back(
         std::move(entry)
     );
 }
 
 const std::vector<TreeEntry>&
-Tree::entries() const {
+Tree::entries() const
+{
     return entries_;
 }
 
 Tree Tree::deserialize(
     const std::string& data
-) {
+)
+{
     Tree tree;
 
     std::istringstream input(data);
 
-    std::string type;
-    std::string object_id;
-    std::string name;
+    std::string line;
 
-    while (
-        input
-        >> type
-        >> object_id
-        >> name
-    ) {
+    while (std::getline(input, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        std::istringstream entry_stream(line);
+
+        std::string type;
+        std::string object_id;
+        std::string name;
+        std::string extra;
+
+        if (
+            !(entry_stream
+                >> type
+                >> object_id
+                >> name)
+        ) {
+            throw std::runtime_error(
+                "Invalid tree entry"
+            );
+        }
+
+        if (entry_stream >> extra) {
+            throw std::runtime_error(
+                "Invalid tree entry: unexpected data"
+            );
+        }
+
         if (
             type != "blob" &&
             type != "tree"
@@ -57,19 +82,24 @@ Tree Tree::deserialize(
             );
         }
 
-        tree.add_entry(
-            TreeEntry{
-                name,
-                object_id,
-                type == "tree"
-            }
+        tree.add_entry({
+            name,
+            object_id,
+            type == "tree"
+        });
+    }
+
+    if (input.bad()) {
+        throw std::runtime_error(
+            "Failed to read tree object"
         );
     }
 
     return tree;
 }
 
-std::string Tree::serialize() const {
+std::string Tree::serialize() const
+{
     std::vector<TreeEntry> sorted_entries =
         entries_;
 
@@ -86,7 +116,6 @@ std::string Tree::serialize() const {
 
     for (const auto& entry :
          sorted_entries) {
-
         output
             << (
                 entry.is_tree

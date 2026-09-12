@@ -4,10 +4,9 @@
 
 class Repository;
 
-class Impact {
-
+class Impact
+{
 public:
-
     explicit Impact(
         const Repository& repository
     );
@@ -17,7 +16,5 @@ public:
     ) const;
 
 private:
-
     const Repository& repository_;
-
 };

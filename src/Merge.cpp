@@ -2,33 +2,34 @@
 
 #include "Blob.hpp"
 #include "Commit.hpp"
+#include "Hash.hpp"
 #include "Index.hpp"
 #include "ObjectDatabase.hpp"
 #include "Reference.hpp"
 #include "Repository.hpp"
 #include "Tree.hpp"
 #include "TreeBuilder.hpp"
-#include "Hash.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <optional>
 #include <queue>
-#include <set>
 #include <sstream>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace {
 
 std::string ensure_trailing_newline(
     const std::string& content
-) {
+)
+{
     if (
         !content.empty() &&
         content.back() != '\n'
@@ -39,16 +40,18 @@ std::string ensure_trailing_newline(
     return content;
 }
 
-}
+} // namespace
 
 Merge::Merge(
     Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
 Merge::Snapshot
-Merge::working_tree_snapshot() const {
+Merge::working_tree_snapshot() const
+{
     Snapshot snapshot;
 
     const auto root =
@@ -59,15 +62,22 @@ Merge::working_tree_snapshot() const {
 
     for (
         const auto& entry :
-        std::filesystem::recursive_directory_iterator(
-            root
-        )
+        std::filesystem::recursive_directory_iterator(root)
     ) {
+        const auto path =
+            entry.path();
+
+        const std::string path_string =
+            path.string();
+
+        const std::string git_directory_prefix =
+            git_directory.string() +
+            std::filesystem::path::preferred_separator;
+
         if (
-            entry.path() == git_directory ||
-            entry.path().string().rfind(
-                git_directory.string() +
-                std::filesystem::path::preferred_separator,
+            path == git_directory ||
+            path_string.rfind(
+                git_directory_prefix,
                 0
             ) == 0
         ) {
@@ -79,20 +89,20 @@ Merge::working_tree_snapshot() const {
         }
 
         std::ifstream file(
-            entry.path(),
+            path,
             std::ios::binary
         );
 
         if (!file) {
             throw std::runtime_error(
                 "Failed to read file: " +
-                entry.path().string()
+                path.string()
             );
         }
 
         const auto relative =
             std::filesystem::relative(
-                entry.path(),
+                path,
                 root
             );
 
@@ -108,7 +118,8 @@ Merge::working_tree_snapshot() const {
 }
 
 Merge::Snapshot
-Merge::index_snapshot() const {
+Merge::index_snapshot() const
+{
     Snapshot snapshot;
 
     ObjectDatabase database(
@@ -123,7 +134,6 @@ Merge::index_snapshot() const {
 
     for (const auto& entry :
          index.entries()) {
-
         snapshot[entry.path] =
             blob_content(
                 database,
@@ -137,17 +147,21 @@ Merge::index_snapshot() const {
 std::string Merge::blob_content(
     ObjectDatabase& database,
     const std::string& object_id
-) const {
+) const
+{
+    if (object_id.empty()) {
+        throw std::runtime_error(
+            "Blob object ID cannot be empty"
+        );
+    }
+
     const std::string data =
         database.read(object_id);
 
     const std::size_t separator =
         data.find('\0');
 
-    if (
-        separator ==
-        std::string::npos
-    ) {
+    if (separator == std::string::npos) {
         throw std::runtime_error(
             "Invalid blob object: " +
             object_id
@@ -162,7 +176,8 @@ std::string Merge::blob_content(
 Merge::Snapshot
 Merge::commit_snapshot(
     const std::string& commit_id
-) const {
+) const
+{
     Snapshot snapshot;
 
     if (commit_id.empty()) {
@@ -177,9 +192,7 @@ Merge::commit_snapshot(
         database.read(commit_id);
 
     const Commit commit =
-        Commit::deserialize(
-            commit_data
-        );
+        Commit::deserialize(commit_data);
 
     collect_tree_snapshot(
         database,
@@ -196,7 +209,14 @@ void Merge::collect_tree_snapshot(
     const std::string& tree_id,
     const std::filesystem::path& prefix,
     Snapshot& snapshot
-) const {
+) const
+{
+    if (tree_id.empty()) {
+        throw std::runtime_error(
+            "Tree object ID cannot be empty"
+        );
+    }
+
     const std::string data =
         database.read(tree_id);
 
@@ -232,7 +252,8 @@ void Merge::collect_tree_snapshot(
 std::vector<std::string>
 Merge::ancestors(
     const std::string& commit_id
-) const {
+) const
+{
     std::vector<std::string> result;
 
     if (commit_id.empty()) {
@@ -272,7 +293,6 @@ Merge::ancestors(
 
         for (const auto& parent :
              commit.parent_ids()) {
-
             if (!parent.empty()) {
                 queue.push(parent);
             }
@@ -285,7 +305,8 @@ Merge::ancestors(
 bool Merge::is_ancestor(
     const std::string& ancestor,
     const std::string& descendant
-) const {
+) const
+{
     if (
         ancestor.empty() ||
         descendant.empty()
@@ -310,12 +331,13 @@ bool Merge::is_ancestor(
 std::string Merge::find_merge_base(
     const std::string& current_commit,
     const std::string& target_commit
-) const {
+) const
+{
     if (
         current_commit.empty() ||
         target_commit.empty()
     ) {
-        return "";
+        return {};
     }
 
     if (
@@ -343,8 +365,9 @@ std::string Merge::find_merge_base(
     std::unordered_map<std::string, std::size_t>
         current_distance;
 
-    std::queue<std::pair<std::string, std::size_t>>
-        current_queue;
+    std::queue<
+        std::pair<std::string, std::size_t>
+    > current_queue;
 
     current_queue.push({
         current_commit,
@@ -374,11 +397,12 @@ std::string Merge::find_merge_base(
 
         for (const auto& parent :
              current.parent_ids()) {
-
-            current_queue.push({
-                parent,
-                distance + 1
-            });
+            if (!parent.empty()) {
+                current_queue.push({
+                    parent,
+                    distance + 1
+                });
+            }
         }
     }
 
@@ -390,8 +414,9 @@ std::string Merge::find_merge_base(
     std::unordered_map<std::string, std::size_t>
         target_distance;
 
-    std::queue<std::pair<std::string, std::size_t>>
-        target_queue;
+    std::queue<
+        std::pair<std::string, std::size_t>
+    > target_queue;
 
     target_queue.push({
         target_commit,
@@ -441,11 +466,12 @@ std::string Merge::find_merge_base(
 
         for (const auto& parent :
              current.parent_ids()) {
-
-            target_queue.push({
-                parent,
-                distance + 1
-            });
+            if (!parent.empty()) {
+                target_queue.push({
+                    parent,
+                    distance + 1
+                });
+            }
         }
     }
 
@@ -458,23 +484,23 @@ Merge::three_way_merge(
     const Snapshot& current,
     const Snapshot& target,
     std::vector<std::string>& conflicts
-) const {
+) const
+{
     Snapshot result;
-
     std::set<std::string> paths;
 
-    for (const auto& [path, content] :
-         base) {
+    for (const auto& [path, content] : base) {
+        static_cast<void>(content);
         paths.insert(path);
     }
 
-    for (const auto& [path, content] :
-         current) {
+    for (const auto& [path, content] : current) {
+        static_cast<void>(content);
         paths.insert(path);
     }
 
-    for (const auto& [path, content] :
-         target) {
+    for (const auto& [path, content] : target) {
+        static_cast<void>(content);
         paths.insert(path);
     }
 
@@ -544,7 +570,8 @@ Merge::three_way_merge(
 
 void Merge::ensure_clean_working_tree(
     const std::string& current_commit
-) const {
+) const
+{
     const Snapshot expected =
         commit_snapshot(current_commit);
 
@@ -568,7 +595,8 @@ void Merge::ensure_clean_working_tree(
     }
 }
 
-void Merge::ensure_index_matches_working_tree() const {
+void Merge::ensure_index_matches_working_tree() const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -593,7 +621,7 @@ void Merge::ensure_index_matches_working_tree() const {
             );
         }
 
-        Blob blob =
+        const Blob blob =
             Blob::from_file(path);
 
         const std::string current_id =
@@ -606,23 +634,34 @@ void Merge::ensure_index_matches_working_tree() const {
                 entry.path
             );
         }
+
+        if (!database.exists(entry.object_id)) {
+            throw std::runtime_error(
+                "Cannot continue merge; staged object "
+                "is missing: " +
+                entry.object_id
+            );
+        }
     }
 }
 
 void Merge::write_snapshot(
     const Snapshot& snapshot
-) const {
+) const
+{
     const auto root =
         repository_.root();
 
     const auto git_directory =
         repository_.git_directory();
 
+    const std::string git_directory_prefix =
+        git_directory.string() +
+        std::filesystem::path::preferred_separator;
+
     for (
         auto iterator =
-            std::filesystem::recursive_directory_iterator(
-                root
-            );
+            std::filesystem::recursive_directory_iterator(root);
         iterator !=
         std::filesystem::recursive_directory_iterator();
         ++iterator
@@ -630,11 +669,13 @@ void Merge::write_snapshot(
         const auto path =
             iterator->path();
 
+        const std::string path_string =
+            path.string();
+
         if (
             path == git_directory ||
-            path.string().rfind(
-                git_directory.string() +
-                std::filesystem::path::preferred_separator,
+            path_string.rfind(
+                git_directory_prefix,
                 0
             ) == 0
         ) {
@@ -660,9 +701,7 @@ void Merge::write_snapshot(
 
         const auto target =
             root /
-            std::filesystem::path(
-                relative_path
-            );
+            std::filesystem::path(relative_path);
 
         std::filesystem::create_directories(
             target.parent_path()
@@ -698,7 +737,8 @@ void Merge::write_snapshot(
 
 void Merge::synchronize_index(
     const std::string& commit_id
-) const {
+) const
+{
     const Snapshot snapshot =
         commit_snapshot(commit_id);
 
@@ -707,7 +747,8 @@ void Merge::synchronize_index(
 
 void Merge::synchronize_index(
     const std::map<std::string, std::string>& files
-) const {
+) const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -720,6 +761,7 @@ void Merge::synchronize_index(
 
     for (const auto& [path, content] :
          files) {
+        static_cast<void>(content);
 
         const auto absolute =
             repository_.root() /
@@ -729,18 +771,16 @@ void Merge::synchronize_index(
             continue;
         }
 
-        Blob blob =
+        const Blob blob =
             Blob::from_file(absolute);
 
         const std::string object_id =
             database.store(blob);
 
-        index.add(
-            IndexEntry{
-                path,
-                object_id
-            }
-        );
+        index.add({
+            path,
+            object_id
+        });
     }
 
     index.save();
@@ -750,7 +790,8 @@ std::string Merge::conflict_content(
     const OptionalContent& current,
     const OptionalContent& target,
     const std::string& branch
-) const {
+) const
+{
     std::ostringstream output;
 
     output
@@ -786,7 +827,8 @@ void Merge::write_conflict_files(
     const Snapshot& target,
     const std::vector<std::string>& conflicts,
     const std::string& branch
-) const {
+) const
+{
     for (const auto& path : conflicts) {
         const auto current_it =
             current.find(path);
@@ -855,7 +897,8 @@ std::string Merge::merge(
     const std::string& branch,
     const std::string& author,
     const std::string& message
-) {
+)
+{
     if (branch.empty()) {
         throw std::invalid_argument(
             "Branch name cannot be empty"
@@ -944,9 +987,6 @@ std::string Merge::merge(
         current_commit
     );
 
-    /*
-     * Fast-forward merge.
-     */
     if (
         is_ancestor(
             current_commit,
@@ -969,9 +1009,6 @@ std::string Merge::merge(
         return target_commit;
     }
 
-    /*
-     * Already up to date.
-     */
     if (
         is_ancestor(
             target_commit,
@@ -1014,18 +1051,9 @@ std::string Merge::merge(
 
     const std::string merge_message =
         message.empty()
-            ? "Merge branch '" +
-              branch +
-              "'"
+            ? "Merge branch '" + branch + "'"
             : message;
 
-    /*
-     * Conflict case:
-     *
-     * Do not create a commit.
-     * Instead, write conflict markers and
-     * persist the merge state.
-     */
     if (!conflicts.empty()) {
         write_conflict_files(
             current,
@@ -1067,12 +1095,7 @@ std::string Merge::merge(
         );
     }
 
-    /*
-     * Clean merge.
-     */
-    write_snapshot(
-        merged
-    );
+    write_snapshot(merged);
 
     ObjectDatabase database(
         repository_.git_directory()
@@ -1086,23 +1109,22 @@ std::string Merge::merge(
 
     for (const auto& [path, content] :
          merged) {
+        static_cast<void>(content);
 
         const auto absolute =
             repository_.root() /
             std::filesystem::path(path);
 
-        Blob blob =
+        const Blob blob =
             Blob::from_file(absolute);
 
         const std::string object_id =
             database.store(blob);
 
-        index.add(
-            IndexEntry{
-                path,
-                object_id
-            }
-        );
+        index.add({
+            path,
+            object_id
+        });
     }
 
     const std::string tree_id =
@@ -1125,9 +1147,7 @@ std::string Merge::merge(
     );
 
     const std::string merge_commit_id =
-        database.store(
-            merge_commit
-        );
+        database.store(merge_commit);
 
     repository_.update_branch(
         current_branch,
@@ -1139,7 +1159,8 @@ std::string Merge::merge(
 
 std::string Merge::continue_merge(
     const std::string& author
-) {
+)
+{
     if (!repository_.merge_in_progress()) {
         throw std::runtime_error(
             "No merge is in progress"
@@ -1228,8 +1249,7 @@ std::string Merge::continue_merge(
         repository_.merge_message();
 
     if (message.empty()) {
-        message =
-            "Merge commit";
+        message = "Merge commit";
     }
 
     Commit merge_commit(
@@ -1243,9 +1263,7 @@ std::string Merge::continue_merge(
     );
 
     const std::string commit_id =
-        database.store(
-            merge_commit
-        );
+        database.store(merge_commit);
 
     repository_.update_branch(
         repository_.current_branch(),

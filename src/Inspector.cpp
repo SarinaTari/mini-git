@@ -12,13 +12,14 @@
 Inspector::Inspector(
     const std::filesystem::path& git_directory
 )
-    : git_directory_(git_directory) {
+    : git_directory_(git_directory)
+{
 }
 
 std::string Inspector::inspect(
     const std::string& object_id
-) const {
-
+) const
+{
     if (object_id.empty()) {
         throw std::invalid_argument(
             "Object ID cannot be empty"
@@ -31,7 +32,8 @@ std::string Inspector::inspect(
 
     if (!database.exists(object_id)) {
         throw std::runtime_error(
-            "Object not found: " + object_id
+            "Object not found: " +
+            object_id
         );
     }
 
@@ -46,31 +48,26 @@ std::string Inspector::inspect(
     output
         << "Object: "
         << object_id
-        << "\n";
-
-    output
+        << '\n'
         << "Type: "
         << object_type_name(type)
         << "\n\n";
 
     switch (type) {
-
         case ObjectType::Blob: {
-
             const Blob blob =
                 Blob::deserialize(data);
 
             output
                 << "Size: "
                 << blob.content().size()
-                << " bytes\n\n";
-
-            output << "Content:\n";
-            output << blob.content();
+                << " bytes\n\n"
+                << "Content:\n"
+                << blob.content();
 
             if (
-                blob.content().empty()
-                || blob.content().back() != '\n'
+                blob.content().empty() ||
+                blob.content().back() != '\n'
             ) {
                 output << '\n';
             }
@@ -79,17 +76,12 @@ std::string Inspector::inspect(
         }
 
         case ObjectType::Tree: {
-
             const Tree tree =
                 Tree::deserialize(data);
 
             output << "Entries:\n";
 
-            for (
-                const auto& entry :
-                tree.entries()
-            ) {
-
+            for (const auto& entry : tree.entries()) {
                 output
                     << "  "
                     << (
@@ -108,7 +100,6 @@ std::string Inspector::inspect(
         }
 
         case ObjectType::Commit: {
-
             const Commit commit =
                 Commit::deserialize(data);
 
@@ -116,19 +107,15 @@ std::string Inspector::inspect(
                 << "Tree:\n"
                 << "  "
                 << commit.tree_id()
-                << "\n\n";
-
-            output << "Parents:\n";
+                << "\n\n"
+                << "Parents:\n";
 
             if (commit.parent_ids().empty()) {
                 output << "  (none)\n";
             }
             else {
-                for (
-                    const auto& parent :
-                    commit.parent_ids()
-                ) {
-
+                for (const auto& parent :
+                     commit.parent_ids()) {
                     output
                         << "  "
                         << parent
@@ -140,9 +127,7 @@ std::string Inspector::inspect(
                 << "\nAuthor:\n"
                 << "  "
                 << commit.author()
-                << "\n\n";
-
-            output
+                << "\n\n"
                 << "Message:\n"
                 << "  "
                 << commit.message()

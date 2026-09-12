@@ -4,10 +4,9 @@
 
 class Repository;
 
-class Benchmark {
-
+class Benchmark
+{
 public:
-
     explicit Benchmark(
         const Repository& repository
     );
@@ -15,7 +14,5 @@ public:
     std::string render() const;
 
 private:
-
     const Repository& repository_;
-
 };

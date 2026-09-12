@@ -1,12 +1,12 @@
 #include "StorageAnalyzer.hpp"
 
-#include "Blob.hpp"
-#include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "ObjectType.hpp"
 #include "Repository.hpp"
-#include "Tree.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <sstream>
@@ -15,71 +15,40 @@
 
 namespace {
 
-struct ObjectInfo {
-
+struct ObjectInfo
+{
     std::string id;
-
     std::string type;
-
     std::uintmax_t size = 0;
-
 };
-
-std::string object_type(
-    const std::string& data
-) {
-
-    if (data.rfind("blob ", 0) == 0) {
-        return "blob";
-    }
-
-    if (data.rfind("tree ", 0) == 0) {
-
-        try {
-            (void)Commit::deserialize(data);
-            return "commit";
-        }
-        catch (...) {
-            return "tree";
-        }
-    }
-
-    return "unknown";
-}
 
 }
 
 StorageAnalyzer::StorageAnalyzer(
     const Repository& repository
 )
-    : repository_(repository) {
+    : repository_(repository)
+{
 }
 
-std::string StorageAnalyzer::render() const {
-
+std::string StorageAnalyzer::render() const
+{
     ObjectDatabase database(
         repository_.git_directory()
     );
 
     std::vector<ObjectInfo> objects;
 
-    std::map<
-        std::string,
-        std::size_t
-    > counts;
+    std::map<std::string, std::size_t> counts;
 
-    std::map<
-        std::string,
-        std::uintmax_t
-    > bytes;
+    std::map<std::string, std::uintmax_t> bytes;
 
-    for (const auto& id :
+    for (const auto& object_id :
          database.object_ids()) {
-
         const auto path =
             repository_.git_directory()
             / "objects"
-            / id;
+            / object_id;
 
         std::error_code error;
 
@@ -94,19 +63,20 @@ std::string StorageAnalyzer::render() const {
         }
 
         const std::string data =
-            database.read(id);
+            database.read(object_id);
 
         const std::string type =
-            object_type(data);
+            object_type_name(
+                detect_object_type(data)
+            );
 
         objects.push_back({
-            id,
+            object_id,
             type,
             size
         });
 
         ++counts[type];
-
         bytes[type] += size;
     }
 
@@ -115,7 +85,6 @@ std::string StorageAnalyzer::render() const {
         objects.end(),
         [](const ObjectInfo& left,
            const ObjectInfo& right) {
-
             if (left.size != right.size) {
                 return left.size > right.size;
             }
@@ -128,7 +97,6 @@ std::string StorageAnalyzer::render() const {
 
     for (const auto& object :
          objects) {
-
         total += object.size;
     }
 
@@ -153,14 +121,15 @@ std::string StorageAnalyzer::render() const {
     const std::vector<std::string> types = {
         "blob",
         "tree",
-        "commit",
-        "unknown"
+        "commit"
     };
 
     for (const auto& type :
          types) {
+        const auto count =
+            counts[type];
 
-        if (counts[type] == 0) {
+        if (count == 0) {
             continue;
         }
 
@@ -168,10 +137,10 @@ std::string StorageAnalyzer::render() const {
             << "  "
             << type
             << ": "
-            << counts[type]
+            << count
             << " object";
 
-        if (counts[type] != 1) {
+        if (count != 1) {
             output << 's';
         }
 
@@ -190,10 +159,11 @@ std::string StorageAnalyzer::render() const {
             objects.size()
         );
 
-    for (std::size_t i = 0;
-         i < limit;
-         ++i) {
-
+    for (
+        std::size_t i = 0;
+        i < limit;
+        ++i
+    ) {
         const auto& object =
             objects[i];
 
