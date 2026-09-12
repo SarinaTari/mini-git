@@ -13,6 +13,11 @@
 #include "Graph.hpp"
 #include "Inspector.hpp"
 #include "Stats.hpp"
+#include "Analyzer.hpp"
+#include "Benchmark.hpp"
+#include "Doctor.hpp"
+#include "Impact.hpp"
+#include "StorageAnalyzer.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -965,6 +970,106 @@ int main(
 
             std::cout
                 << stats.render();
+
+            return 0;
+        }
+        
+        if (command == "analyze") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git analyze"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Analyzer analyzer(repository);
+
+            std::cout
+                << analyzer.render();
+
+            return 0;
+        }
+
+        if (command == "impact") {
+
+            if (argc != 3) {
+                throw std::invalid_argument(
+                    "Usage: mini-git impact <commit>"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Impact impact(repository);
+
+            std::cout
+                << impact.render(argv[2]);
+
+            return 0;
+        }
+
+        if (command == "doctor") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git doctor"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Doctor doctor(repository);
+
+            std::cout
+                << doctor.render();
+
+            return 0;
+        }
+
+        if (command == "storage") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git storage"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            StorageAnalyzer analyzer(repository);
+
+            std::cout
+                << analyzer.render();
+
+            return 0;
+        }
+
+        if (command == "benchmark") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git benchmark"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Benchmark benchmark(repository);
+
+            std::cout
+                << benchmark.render();
 
             return 0;
         }

@@ -36,6 +36,12 @@ add_executable(
     src/Explainer.cpp
     src/Graph.cpp
     src/Stats.cpp
+    src/Analyzer.cpp
+    src/Impact.cpp
+    src/Doctor.cpp
+    src/StorageAnalyzer.cpp
+    src/Benchmark.cpp
+    src/ObjectType.cpp
 )
 
 target_include_directories(
@@ -526,6 +532,7 @@ add_executable(
     src/Commit.cpp
     src/Hash.cpp
     src/FileReader.cpp
+    src/ObjectType.cpp
 )
 
 target_include_directories(
@@ -609,6 +616,7 @@ add_executable(
     src/TreeBuilder.cpp
     src/Index.cpp
     src/Hash.cpp
+    src/ObjectType.cpp
 )
 
 target_include_directories(
@@ -626,4 +634,196 @@ target_link_libraries(
 add_test(
     NAME StatsTests
     COMMAND stats-tests
+)
+
+# ============================================================
+# Phase 19 - Unique Repository Intelligence Tests
+# ============================================================
+
+add_executable(
+    analyzer-tests
+    tests/AnalyzerTests.cpp
+    src/Analyzer.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+    src/Index.cpp
+)
+
+target_include_directories(
+    analyzer-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    analyzer-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME AnalyzerTests
+    COMMAND analyzer-tests
+)
+
+add_executable(
+    impact-tests
+    tests/ImpactTests.cpp
+    src/Impact.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+    src/Index.cpp
+)
+
+target_include_directories(
+    impact-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    impact-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME ImpactTests
+    COMMAND impact-tests
+)
+
+add_executable(
+    doctor-tests
+    tests/DoctorTests.cpp
+    src/Doctor.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+    src/Index.cpp
+)
+
+target_include_directories(
+    doctor-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    doctor-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME DoctorTests
+    COMMAND doctor-tests
+)
+
+add_executable(
+    storage-tests
+    tests/StorageAnalyzerTests.cpp
+    src/StorageAnalyzer.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+    src/Index.cpp
+)
+
+target_include_directories(
+    storage-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    storage-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME StorageAnalyzerTests
+    COMMAND storage-tests
+)
+
+add_executable(
+    benchmark-tests
+    tests/BenchmarkTests.cpp
+    src/Benchmark.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+    src/Index.cpp
+)
+
+target_include_directories(
+    benchmark-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    benchmark-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME BenchmarkTests
+    COMMAND benchmark-tests
+)
+
+add_executable(
+    object-type-tests
+    tests/ObjectTypeTests.cpp
+    src/ObjectType.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/FileReader.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    object-type-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    object-type-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME ObjectTypeTests
+    COMMAND object-type-tests
 )

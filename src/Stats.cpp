@@ -1,14 +1,11 @@
 #include "Stats.hpp"
 
-#include "Blob.hpp"
-#include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "ObjectType.hpp"
 #include "Repository.hpp"
-#include "Tree.hpp"
 
 #include <filesystem>
 #include <sstream>
-#include <string>
 
 Stats::Stats(
     const Repository& repository
@@ -25,10 +22,16 @@ std::string Stats::render() const {
     std::size_t blobs = 0;
     std::size_t trees = 0;
     std::size_t commits = 0;
+
     std::uintmax_t storage = 0;
 
-    for (const auto& object_id :
-         database.object_ids()) {
+    const auto object_ids =
+        database.object_ids();
+
+    for (
+        const auto& object_id :
+        object_ids
+    ) {
 
         const auto object_path =
             repository_.git_directory()
@@ -50,20 +53,22 @@ std::string Stats::render() const {
         const std::string data =
             database.read(object_id);
 
-        if (data.rfind("blob ", 0) == 0) {
-            ++blobs;
-            continue;
-        }
+        const ObjectType type =
+            detect_object_type(data);
 
-        if (data.rfind("tree ", 0) == 0) {
+        switch (type) {
 
-            try {
-                (void)Commit::deserialize(data);
-                ++commits;
-            }
-            catch (...) {
+            case ObjectType::Blob:
+                ++blobs;
+                break;
+
+            case ObjectType::Tree:
                 ++trees;
-            }
+                break;
+
+            case ObjectType::Commit:
+                ++commits;
+                break;
         }
     }
 
@@ -75,7 +80,7 @@ std::string Stats::render() const {
     output
         << "Objects:\n"
         << "  Total:   "
-        << database.object_ids().size()
+        << object_ids.size()
         << '\n'
         << "  Blobs:   "
         << blobs
@@ -97,12 +102,14 @@ std::string Stats::render() const {
         << '\n';
 
     if (!repository_.head_commit().empty()) {
+
         output
             << "  HEAD:     "
             << repository_.head_commit()
             << '\n';
     }
     else {
+
         output
             << "  HEAD:     (no commit)\n";
     }

@@ -3,44 +3,11 @@
 #include "Blob.hpp"
 #include "Commit.hpp"
 #include "ObjectDatabase.hpp"
+#include "ObjectType.hpp"
 #include "Tree.hpp"
 
 #include <sstream>
 #include <stdexcept>
-
-namespace {
-
-std::string detect_type(
-    const std::string& data
-) {
-    if (data.rfind("blob ", 0) == 0) {
-        return "blob";
-    }
-
-    if (data.rfind("tree ", 0) == 0) {
-        /*
-         * A Commit also begins with:
-         *
-         * tree <object-id>
-         *
-         * Therefore we try Commit first.
-         */
-        try {
-            (void)Commit::deserialize(data);
-            return "commit";
-        }
-        catch (...) {
-        }
-
-        return "tree";
-    }
-
-    throw std::runtime_error(
-        "Unknown object format"
-    );
-}
-
-}
 
 Inspector::Inspector(
     const std::filesystem::path& git_directory
@@ -71,8 +38,8 @@ std::string Inspector::inspect(
     const std::string data =
         database.read(object_id);
 
-    const std::string type =
-        detect_type(data);
+    const ObjectType type =
+        detect_object_type(data);
 
     std::ostringstream output;
 
@@ -83,93 +50,106 @@ std::string Inspector::inspect(
 
     output
         << "Type: "
-        << type
+        << object_type_name(type)
         << "\n\n";
 
-    if (type == "blob") {
+    switch (type) {
 
-        const Blob blob =
-            Blob::deserialize(data);
+        case ObjectType::Blob: {
 
-        output
-            << "Size: "
-            << blob.content().size()
-            << " bytes\n\n";
-
-        output << "Content:\n";
-        output << blob.content();
-
-        if (
-            blob.content().empty() ||
-            blob.content().back() != '\n'
-        ) {
-            output << '\n';
-        }
-    }
-
-    else if (type == "tree") {
-
-        const Tree tree =
-            Tree::deserialize(data);
-
-        output << "Entries:\n";
-
-        for (const auto& entry :
-             tree.entries()) {
+            const Blob blob =
+                Blob::deserialize(data);
 
             output
-                << "  "
-                << (
-                    entry.is_tree
-                        ? "tree"
-                        : "blob"
-                )
-                << "  "
-                << entry.object_id
-                << "  "
-                << entry.name
-                << '\n';
+                << "Size: "
+                << blob.content().size()
+                << " bytes\n\n";
+
+            output << "Content:\n";
+            output << blob.content();
+
+            if (
+                blob.content().empty()
+                || blob.content().back() != '\n'
+            ) {
+                output << '\n';
+            }
+
+            break;
         }
-    }
 
-    else if (type == "commit") {
+        case ObjectType::Tree: {
 
-        const Commit commit =
-            Commit::deserialize(data);
+            const Tree tree =
+                Tree::deserialize(data);
 
-        output
-            << "Tree:\n"
-            << "  "
-            << commit.tree_id()
-            << "\n\n";
+            output << "Entries:\n";
 
-        output << "Parents:\n";
-
-        if (commit.parent_ids().empty()) {
-            output << "  (none)\n";
-        }
-        else {
-            for (const auto& parent :
-                 commit.parent_ids()) {
+            for (
+                const auto& entry :
+                tree.entries()
+            ) {
 
                 output
                     << "  "
-                    << parent
+                    << (
+                        entry.is_tree
+                            ? "tree"
+                            : "blob"
+                    )
+                    << "  "
+                    << entry.object_id
+                    << "  "
+                    << entry.name
                     << '\n';
             }
+
+            break;
         }
 
-        output
-            << "\nAuthor:\n"
-            << "  "
-            << commit.author()
-            << "\n\n";
+        case ObjectType::Commit: {
 
-        output
-            << "Message:\n"
-            << "  "
-            << commit.message()
-            << '\n';
+            const Commit commit =
+                Commit::deserialize(data);
+
+            output
+                << "Tree:\n"
+                << "  "
+                << commit.tree_id()
+                << "\n\n";
+
+            output << "Parents:\n";
+
+            if (commit.parent_ids().empty()) {
+                output << "  (none)\n";
+            }
+            else {
+                for (
+                    const auto& parent :
+                    commit.parent_ids()
+                ) {
+
+                    output
+                        << "  "
+                        << parent
+                        << '\n';
+                }
+            }
+
+            output
+                << "\nAuthor:\n"
+                << "  "
+                << commit.author()
+                << "\n\n";
+
+            output
+                << "Message:\n"
+                << "  "
+                << commit.message()
+                << '\n';
+
+            break;
+        }
     }
 
     return output.str();
