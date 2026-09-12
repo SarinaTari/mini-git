@@ -6,6 +6,8 @@
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
+#include <algorithm>
+#include <vector>
 
 ObjectDatabase::ObjectDatabase(
     const std::filesystem::path& git_dir
@@ -96,4 +98,37 @@ std::string ObjectDatabase::read(
         std::istreambuf_iterator<char>(file),
         std::istreambuf_iterator<char>()
     );
+}
+
+std::vector<std::string>
+ObjectDatabase::object_ids() const {
+
+    std::vector<std::string> result;
+
+    if (!std::filesystem::exists(objects_dir_)) {
+        return result;
+    }
+
+    for (
+        const auto& entry :
+        std::filesystem::directory_iterator(
+            objects_dir_
+        )
+    ) {
+
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+
+        result.push_back(
+            entry.path().filename().string()
+        );
+    }
+
+    std::sort(
+        result.begin(),
+        result.end()
+    );
+
+    return result;
 }

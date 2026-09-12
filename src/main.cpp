@@ -9,6 +9,10 @@
 #include "Repository.hpp"
 #include "Status.hpp"
 #include "TreeBuilder.hpp"
+#include "Explainer.hpp"
+#include "Graph.hpp"
+#include "Inspector.hpp"
+#include "Stats.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -883,6 +887,84 @@ int main(
                 current =
                     commit.parent_id();
             }
+
+            return 0;
+        }
+
+        if (command == "inspect") {
+
+            if (argc != 3) {
+                throw std::invalid_argument(
+                    "Usage: mini-git inspect <object-id>"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Inspector inspector(
+                repository.git_directory()
+            );
+
+            std::cout
+                << inspector.inspect(argv[2])
+                << '\n';
+
+            return 0;
+        }
+
+        if (command == "explain") {
+
+            if (argc != 3) {
+                throw std::invalid_argument(
+                    "Usage: mini-git explain <command>"
+                );
+            }
+
+            std::cout
+                << Explainer::explain(argv[2])
+                << '\n';
+
+            return 0;
+        }
+
+        if (command == "graph") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git graph"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Graph graph(repository);
+
+            std::cout
+                << graph.render();
+
+            return 0;
+        }
+
+        if (command == "stats") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git stats"
+                );
+            }
+
+            Repository repository(
+                std::filesystem::current_path()
+            );
+
+            Stats stats(repository);
+
+            std::cout
+                << stats.render();
 
             return 0;
         }

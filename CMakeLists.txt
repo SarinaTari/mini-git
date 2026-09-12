@@ -32,6 +32,10 @@ add_executable(
     src/TreeBuilder.cpp
     src/Index.cpp
     src/Status.cpp
+    src/Inspector.cpp
+    src/Explainer.cpp
+    src/Graph.cpp
+    src/Stats.cpp
 )
 
 target_include_directories(
@@ -506,4 +510,120 @@ target_link_libraries(
 add_test(
     NAME TagTests
     COMMAND tag-tests
+)
+
+# ============================================================
+# Phase 18 - Educational Intelligence Tests
+# ============================================================
+
+add_executable(
+    inspector-tests
+    tests/InspectorTests.cpp
+    src/Inspector.cpp
+    src/ObjectDatabase.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/Hash.cpp
+    src/FileReader.cpp
+)
+
+target_include_directories(
+    inspector-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    inspector-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME InspectorTests
+    COMMAND inspector-tests
+)
+
+add_executable(
+    explainer-tests
+    tests/ExplainerTests.cpp
+    src/Explainer.cpp
+)
+
+target_include_directories(
+    explainer-tests
+    PRIVATE
+    include
+)
+
+add_test(
+    NAME ExplainerTests
+    COMMAND explainer-tests
+)
+
+add_executable(
+    graph-tests
+    tests/GraphTests.cpp
+    src/Graph.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    graph-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    graph-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME GraphTests
+    COMMAND graph-tests
+)
+
+add_executable(
+    stats-tests
+    tests/StatsTests.cpp
+    src/Stats.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    stats-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    stats-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME StatsTests
+    COMMAND stats-tests
 )
