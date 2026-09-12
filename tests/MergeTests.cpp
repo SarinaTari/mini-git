@@ -12,7 +12,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace {
 
@@ -196,6 +195,10 @@ void test_fast_forward_merge()
     assert(result == second);
     assert(repository.head_commit() == second);
 
+    assert(
+        !repository.merge_in_progress()
+    );
+
     std::ifstream file(
         root / "hello.txt"
     );
@@ -269,6 +272,10 @@ void test_already_up_to_date()
 
     assert(result == second);
     assert(repository.head_commit() == second);
+
+    assert(
+        !repository.merge_in_progress()
+    );
 
     std::filesystem::remove_all(root);
 
@@ -383,6 +390,10 @@ void test_non_conflicting_merge()
     assert(
         repository.head_commit() ==
         merge_id
+    );
+
+    assert(
+        !repository.merge_in_progress()
     );
 
     ObjectDatabase database(
@@ -538,6 +549,20 @@ void test_conflicting_merge()
     assert(conflict_detected);
 
     assert(
+        repository.merge_in_progress()
+    );
+
+    assert(
+        repository.merge_orig_head() ==
+        main_commit
+    );
+
+    assert(
+        repository.merge_head() ==
+        feature_commit
+    );
+
+    assert(
         repository.head_commit() ==
         main_commit
     );
@@ -546,20 +571,36 @@ void test_conflicting_merge()
         root / "hello.txt"
     );
 
-    std::string content;
+    std::string content{
+        std::istreambuf_iterator<char>(file),
+        std::istreambuf_iterator<char>()
+    };
 
-    std::getline(
-        file,
-        content
+    assert(
+        content.find("<<<<<<< ours") !=
+        std::string::npos
     );
 
     assert(
-        content == "Main"
+        content.find("=======") !=
+        std::string::npos
+    );
+
+    assert(
+        content.find(">>>>>>> feature") !=
+        std::string::npos
+    );
+
+    /*
+     * Clean up the merge state for this test.
+     */
+    merge.abort_merge();
+
+    assert(
+        !repository.merge_in_progress()
     );
 
     std::filesystem::remove_all(root);
-
-    (void)feature_commit;
 }
 
 void test_missing_branch()
@@ -610,6 +651,10 @@ void test_missing_branch()
     }
 
     assert(failed);
+
+    assert(
+        !repository.merge_in_progress()
+    );
 
     std::filesystem::remove_all(root);
 }

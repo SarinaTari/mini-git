@@ -4,6 +4,8 @@
 #include "Hash.hpp"
 
 #include <filesystem>
+#include <fstream>
+#include <string>
 
 Status::Status(
     const std::filesystem::path& root,
@@ -18,6 +20,7 @@ StatusResult Status::collect() {
 
     collect_modified(result);
     collect_untracked(result);
+    collect_merge_state(result);
 
     return result;
 }
@@ -38,13 +41,21 @@ void Status::collect_modified(
             continue;
         }
 
-        Blob blob = Blob::from_file(file_path);
+        Blob blob =
+            Blob::from_file(file_path);
 
         const std::string current_object_id =
-            Hash::sha256(blob.serialize());
+            Hash::sha256(
+                blob.serialize()
+            );
 
-        if (current_object_id != entry.object_id) {
-            result.modified.push_back(entry.path);
+        if (
+            current_object_id !=
+            entry.object_id
+        ) {
+            result.modified.push_back(
+                entry.path
+            );
         }
     }
 }
@@ -61,9 +72,11 @@ void Status::collect_untracked(
     while (iterator != end) {
         const auto& entry = *iterator;
 
-        if (entry.is_directory() &&
-            entry.path().filename() == ".mini-git") {
-
+        if (
+            entry.is_directory() &&
+            entry.path().filename() ==
+            ".mini-git"
+        ) {
             iterator.disable_recursion_pending();
             ++iterator;
             continue;
@@ -81,12 +94,49 @@ void Status::collect_untracked(
             );
 
         const std::string path =
-            relative_path.string();
+            relative_path.generic_string();
 
         if (!index_.contains(path)) {
             result.untracked.push_back(path);
         }
 
         ++iterator;
+    }
+}
+
+void Status::collect_merge_state(
+    StatusResult& result
+) {
+    const auto git_directory =
+        root_ / ".mini-git";
+
+    const auto merge_head =
+        git_directory / "MERGE_HEAD";
+
+    if (!std::filesystem::exists(
+            merge_head
+        )) {
+        return;
+    }
+
+    result.merge_in_progress = true;
+
+    std::ifstream conflicts_file(
+        git_directory / "MERGE_CONFLICTS"
+    );
+
+    if (!conflicts_file) {
+        return;
+    }
+
+    std::string path;
+
+    while (std::getline(
+        conflicts_file,
+        path
+    )) {
+        if (!path.empty()) {
+            result.conflicts.push_back(path);
+        }
     }
 }

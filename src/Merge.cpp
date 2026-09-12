@@ -8,6 +8,7 @@
 #include "Repository.hpp"
 #include "Tree.hpp"
 #include "TreeBuilder.hpp"
+#include "Hash.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -22,6 +23,23 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+namespace {
+
+std::string ensure_trailing_newline(
+    const std::string& content
+) {
+    if (
+        !content.empty() &&
+        content.back() != '\n'
+    ) {
+        return content + '\n';
+    }
+
+    return content;
+}
+
+}
 
 Merge::Merge(
     Repository& repository
@@ -365,6 +383,7 @@ std::string Merge::find_merge_base(
     }
 
     std::string best_base;
+
     std::size_t best_score =
         static_cast<std::size_t>(-1);
 
@@ -398,9 +417,10 @@ std::string Merge::find_merge_base(
         const auto current_it =
             current_distance.find(commit);
 
-        if (current_it !=
-            current_distance.end()) {
-
+        if (
+            current_it !=
+            current_distance.end()
+        ) {
             const std::size_t score =
                 current_it->second +
                 distance;
@@ -468,21 +488,21 @@ Merge::three_way_merge(
         const auto target_it =
             target.find(path);
 
-        const std::optional<std::string> base_value =
+        const OptionalContent base_value =
             base_it == base.end()
                 ? std::nullopt
                 : std::optional<std::string>(
                     base_it->second
                 );
 
-        const std::optional<std::string> current_value =
+        const OptionalContent current_value =
             current_it == current.end()
                 ? std::nullopt
                 : std::optional<std::string>(
                     current_it->second
                 );
 
-        const std::optional<std::string> target_value =
+        const OptionalContent target_value =
             target_it == target.end()
                 ? std::nullopt
                 : std::optional<std::string>(
@@ -548,6 +568,47 @@ void Merge::ensure_clean_working_tree(
     }
 }
 
+void Merge::ensure_index_matches_working_tree() const {
+    ObjectDatabase database(
+        repository_.git_directory()
+    );
+
+    Index index(
+        repository_.git_directory() / "index"
+    );
+
+    index.load();
+
+    for (const auto& entry :
+         index.entries()) {
+
+        const auto path =
+            repository_.root() /
+            std::filesystem::path(entry.path);
+
+        if (!std::filesystem::exists(path)) {
+            throw std::runtime_error(
+                "Cannot continue merge; file is missing: " +
+                entry.path
+            );
+        }
+
+        Blob blob =
+            Blob::from_file(path);
+
+        const std::string current_id =
+            Hash::sha256(blob.serialize());
+
+        if (current_id != entry.object_id) {
+            throw std::runtime_error(
+                "Cannot continue merge; file has "
+                "unstaged changes: " +
+                entry.path
+            );
+        }
+    }
+}
+
 void Merge::write_snapshot(
     const Snapshot& snapshot
 ) const {
@@ -598,7 +659,8 @@ void Merge::write_snapshot(
          snapshot) {
 
         const auto target =
-            root / std::filesystem::path(
+            root /
+            std::filesystem::path(
                 relative_path
             );
 
@@ -654,12 +716,18 @@ void Merge::synchronize_index(
         repository_.git_directory() / "index"
     );
 
+    index.clear();
+
     for (const auto& [path, content] :
          files) {
 
         const auto absolute =
             repository_.root() /
             std::filesystem::path(path);
+
+        if (!std::filesystem::exists(absolute)) {
+            continue;
+        }
 
         Blob blob =
             Blob::from_file(absolute);
@@ -678,6 +746,111 @@ void Merge::synchronize_index(
     index.save();
 }
 
+std::string Merge::conflict_content(
+    const OptionalContent& current,
+    const OptionalContent& target,
+    const std::string& branch
+) const {
+    std::ostringstream output;
+
+    output
+        << "<<<<<<< ours\n";
+
+    if (current.has_value()) {
+        output
+            << ensure_trailing_newline(
+                *current
+            );
+    }
+
+    output
+        << "=======\n";
+
+    if (target.has_value()) {
+        output
+            << ensure_trailing_newline(
+                *target
+            );
+    }
+
+    output
+        << ">>>>>>> "
+        << branch
+        << '\n';
+
+    return output.str();
+}
+
+void Merge::write_conflict_files(
+    const Snapshot& current,
+    const Snapshot& target,
+    const std::vector<std::string>& conflicts,
+    const std::string& branch
+) const {
+    for (const auto& path : conflicts) {
+        const auto current_it =
+            current.find(path);
+
+        const auto target_it =
+            target.find(path);
+
+        const OptionalContent current_value =
+            current_it == current.end()
+                ? std::nullopt
+                : std::optional<std::string>(
+                    current_it->second
+                );
+
+        const OptionalContent target_value =
+            target_it == target.end()
+                ? std::nullopt
+                : std::optional<std::string>(
+                    target_it->second
+                );
+
+        const auto absolute =
+            repository_.root() /
+            std::filesystem::path(path);
+
+        std::filesystem::create_directories(
+            absolute.parent_path()
+        );
+
+        std::ofstream file(
+            absolute,
+            std::ios::binary
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write conflict file: " +
+                absolute.string()
+            );
+        }
+
+        const std::string content =
+            conflict_content(
+                current_value,
+                target_value,
+                branch
+            );
+
+        file.write(
+            content.data(),
+            static_cast<std::streamsize>(
+                content.size()
+            )
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to write conflict file: " +
+                absolute.string()
+            );
+        }
+    }
+}
+
 std::string Merge::merge(
     const std::string& branch,
     const std::string& author,
@@ -686,6 +859,12 @@ std::string Merge::merge(
     if (branch.empty()) {
         throw std::invalid_argument(
             "Branch name cannot be empty"
+        );
+    }
+
+    if (repository_.merge_in_progress()) {
+        throw std::runtime_error(
+            "A merge is already in progress"
         );
     }
 
@@ -757,10 +936,6 @@ std::string Merge::merge(
         );
     }
 
-    /*
-     * If both branches point at the same commit,
-     * there is nothing to merge.
-     */
     if (current_commit == target_commit) {
         return current_commit;
     }
@@ -770,11 +945,7 @@ std::string Merge::merge(
     );
 
     /*
-     * Case 1:
-     *
-     * Current branch is an ancestor of target.
-     *
-     * This is a fast-forward merge.
+     * Fast-forward merge.
      */
     if (
         is_ancestor(
@@ -799,10 +970,7 @@ std::string Merge::merge(
     }
 
     /*
-     * Case 2:
-     *
-     * Target branch is already contained in
-     * the current branch.
+     * Already up to date.
      */
     if (
         is_ancestor(
@@ -813,11 +981,6 @@ std::string Merge::merge(
         return current_commit;
     }
 
-    /*
-     * Case 3:
-     *
-     * Divergent histories.
-     */
     const std::string base_commit =
         find_merge_base(
             current_commit,
@@ -849,7 +1012,35 @@ std::string Merge::merge(
             conflicts
         );
 
+    const std::string merge_message =
+        message.empty()
+            ? "Merge branch '" +
+              branch +
+              "'"
+            : message;
+
+    /*
+     * Conflict case:
+     *
+     * Do not create a commit.
+     * Instead, write conflict markers and
+     * persist the merge state.
+     */
     if (!conflicts.empty()) {
+        write_conflict_files(
+            current,
+            target,
+            conflicts,
+            branch
+        );
+
+        repository_.begin_merge_state(
+            current_commit,
+            target_commit,
+            merge_message,
+            conflicts
+        );
+
         std::ostringstream error;
 
         error
@@ -857,12 +1048,19 @@ std::string Merge::merge(
 
         for (const auto& path :
              conflicts) {
-
             error
                 << "  "
                 << path
                 << '\n';
         }
+
+        error
+            << "\nResolve the conflicts, "
+               "stage the resolved files, then run:\n"
+               "  mini-git merge --continue\n"
+               "\n"
+               "To cancel the merge, run:\n"
+               "  mini-git merge --abort\n";
 
         throw std::runtime_error(
             error.str()
@@ -870,14 +1068,12 @@ std::string Merge::merge(
     }
 
     /*
-     * Write the clean merged working tree.
+     * Clean merge.
      */
-    write_snapshot(merged);
+    write_snapshot(
+        merged
+    );
 
-    /*
-     * Convert the merged working tree into
-     * Blob objects and rebuild the Index.
-     */
     ObjectDatabase database(
         repository_.git_directory()
     );
@@ -885,6 +1081,8 @@ std::string Merge::merge(
     Index index(
         repository_.git_directory() / "index"
     );
+
+    index.clear();
 
     for (const auto& [path, content] :
          merged) {
@@ -916,13 +1114,6 @@ std::string Merge::merge(
 
     index.save();
 
-    const std::string merge_message =
-        message.empty()
-            ? "Merge branch '" +
-              branch +
-              "'"
-            : message;
-
     Commit merge_commit(
         tree_id,
         std::vector<std::string>{
@@ -934,7 +1125,9 @@ std::string Merge::merge(
     );
 
     const std::string merge_commit_id =
-        database.store(merge_commit);
+        database.store(
+            merge_commit
+        );
 
     repository_.update_branch(
         current_branch,
@@ -942,4 +1135,163 @@ std::string Merge::merge(
     );
 
     return merge_commit_id;
+}
+
+std::string Merge::continue_merge(
+    const std::string& author
+) {
+    if (!repository_.merge_in_progress()) {
+        throw std::runtime_error(
+            "No merge is in progress"
+        );
+    }
+
+    if (repository_.is_detached_head()) {
+        throw std::runtime_error(
+            "Cannot continue merge while HEAD "
+            "is detached"
+        );
+    }
+
+    const std::string original_head =
+        repository_.merge_orig_head();
+
+    const std::string target_commit =
+        repository_.merge_head();
+
+    if (original_head.empty()) {
+        throw std::runtime_error(
+            "Invalid merge state: missing "
+            "MERGE_ORIG_HEAD"
+        );
+    }
+
+    if (target_commit.empty()) {
+        throw std::runtime_error(
+            "Invalid merge state: missing "
+            "MERGE_HEAD"
+        );
+    }
+
+    if (
+        repository_.head_commit() !=
+        original_head
+    ) {
+        throw std::runtime_error(
+            "Cannot continue merge because "
+            "HEAD has changed"
+        );
+    }
+
+    const auto conflicts =
+        repository_.merge_conflicts();
+
+    if (!conflicts.empty()) {
+        std::ostringstream error;
+
+        error
+            << "Cannot continue merge; "
+               "unresolved conflict(s):\n";
+
+        for (const auto& path : conflicts) {
+            error
+                << "  "
+                << path
+                << '\n';
+        }
+
+        throw std::runtime_error(
+            error.str()
+        );
+    }
+
+    ensure_index_matches_working_tree();
+
+    Index index(
+        repository_.git_directory() / "index"
+    );
+
+    index.load();
+
+    ObjectDatabase database(
+        repository_.git_directory()
+    );
+
+    const std::string tree_id =
+        TreeBuilder(database)
+            .build_from_index(
+                index,
+                repository_.root()
+            );
+
+    std::string message =
+        repository_.merge_message();
+
+    if (message.empty()) {
+        message =
+            "Merge commit";
+    }
+
+    Commit merge_commit(
+        tree_id,
+        std::vector<std::string>{
+            original_head,
+            target_commit
+        },
+        author,
+        message
+    );
+
+    const std::string commit_id =
+        database.store(
+            merge_commit
+        );
+
+    repository_.update_branch(
+        repository_.current_branch(),
+        commit_id
+    );
+
+    repository_.clear_merge_state();
+
+    return commit_id;
+}
+
+void Merge::abort_merge()
+{
+    if (!repository_.merge_in_progress()) {
+        throw std::runtime_error(
+            "No merge is in progress"
+        );
+    }
+
+    const std::string original_head =
+        repository_.merge_orig_head();
+
+    if (original_head.empty()) {
+        throw std::runtime_error(
+            "Invalid merge state: missing "
+            "MERGE_ORIG_HEAD"
+        );
+    }
+
+    if (
+        repository_.head_commit() !=
+        original_head
+    ) {
+        throw std::runtime_error(
+            "Cannot abort merge because "
+            "HEAD has changed"
+        );
+    }
+
+    repository_.restore_commit(
+        original_head
+    );
+
+    synchronize_index(
+        original_head
+    );
+
+    repository_.clear_merge_state();
 }

@@ -264,14 +264,20 @@ void Repository::verify_checkout_is_safe(
 ) const
 {
     /*
-     * Phase 13 intentionally uses a conservative
-     * checkout policy.
+     * Phase 16 prevents branch switching while
+     * an unresolved merge is active.
      *
-     * Detailed working-tree change detection will
-     * be expanded in later phases.
+     * This avoids silently discarding merge state.
      */
-
     (void)target_commit;
+
+    if (merge_in_progress()) {
+        throw std::runtime_error(
+            "Cannot checkout while a merge is in progress; "
+            "use 'mini-git merge --continue' or "
+            "'mini-git merge --abort'"
+        );
+    }
 }
 
 void Repository::checkout_tree(
@@ -478,6 +484,252 @@ void Repository::add_tree_to_index(
             });
         }
     }
+}
+
+// ============================================================
+// Merge state
+// ============================================================
+
+bool Repository::merge_in_progress() const
+{
+    return std::filesystem::exists(
+        git_dir_ / "MERGE_HEAD"
+    );
+}
+
+std::string Repository::merge_head() const
+{
+    std::ifstream file(
+        git_dir_ / "MERGE_HEAD"
+    );
+
+    if (!file) {
+        return "";
+    }
+
+    std::string value;
+
+    std::getline(
+        file,
+        value
+    );
+
+    return value;
+}
+
+std::string Repository::merge_orig_head() const
+{
+    std::ifstream file(
+        git_dir_ / "MERGE_ORIG_HEAD"
+    );
+
+    if (!file) {
+        return "";
+    }
+
+    std::string value;
+
+    std::getline(
+        file,
+        value
+    );
+
+    return value;
+}
+
+std::string Repository::merge_message() const
+{
+    std::ifstream file(
+        git_dir_ / "MERGE_MSG"
+    );
+
+    if (!file) {
+        return "";
+    }
+
+    std::ostringstream buffer;
+
+    buffer << file.rdbuf();
+
+    return buffer.str();
+}
+
+std::vector<std::string>
+Repository::merge_conflicts() const
+{
+    std::vector<std::string> conflicts;
+
+    std::ifstream file(
+        git_dir_ / "MERGE_CONFLICTS"
+    );
+
+    if (!file) {
+        return conflicts;
+    }
+
+    std::string line;
+
+    while (std::getline(file, line)) {
+        if (!line.empty()) {
+            conflicts.push_back(line);
+        }
+    }
+
+    return conflicts;
+}
+
+bool Repository::is_merge_conflict(
+    const std::string& path
+) const
+{
+    const auto conflicts =
+        merge_conflicts();
+
+    return std::find(
+        conflicts.begin(),
+        conflicts.end(),
+        path
+    ) != conflicts.end();
+}
+
+void Repository::begin_merge_state(
+    const std::string& original_head,
+    const std::string& merge_head,
+    const std::string& message,
+    const std::vector<std::string>& conflicts
+) const
+{
+    if (
+        original_head.empty() ||
+        merge_head.empty()
+    ) {
+        throw std::invalid_argument(
+            "Merge state requires valid commit IDs"
+        );
+    }
+
+    if (merge_in_progress()) {
+        throw std::runtime_error(
+            "A merge is already in progress"
+        );
+    }
+
+    {
+        std::ofstream file(
+            git_dir_ / "MERGE_HEAD"
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to create MERGE_HEAD"
+            );
+        }
+
+        file << merge_head << '\n';
+    }
+
+    {
+        std::ofstream file(
+            git_dir_ / "MERGE_ORIG_HEAD"
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to create MERGE_ORIG_HEAD"
+            );
+        }
+
+        file << original_head << '\n';
+    }
+
+    {
+        std::ofstream file(
+            git_dir_ / "MERGE_MSG"
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to create MERGE_MSG"
+            );
+        }
+
+        file << message;
+    }
+
+    {
+        std::ofstream file(
+            git_dir_ / "MERGE_CONFLICTS"
+        );
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to create MERGE_CONFLICTS"
+            );
+        }
+
+        for (const auto& path : conflicts) {
+            file << path << '\n';
+        }
+    }
+}
+
+void Repository::resolve_merge_conflict(
+    const std::string& path
+) const
+{
+    if (!merge_in_progress()) {
+        throw std::runtime_error(
+            "No merge is in progress"
+        );
+    }
+
+    const auto conflicts =
+        merge_conflicts();
+
+    if (
+        std::find(
+            conflicts.begin(),
+            conflicts.end(),
+            path
+        ) == conflicts.end()
+    ) {
+        return;
+    }
+
+    std::ofstream file(
+        git_dir_ / "MERGE_CONFLICTS"
+    );
+
+    if (!file) {
+        throw std::runtime_error(
+            "Failed to update merge conflicts"
+        );
+    }
+
+    for (const auto& conflict : conflicts) {
+        if (conflict != path) {
+            file << conflict << '\n';
+        }
+    }
+}
+
+void Repository::clear_merge_state() const
+{
+    std::filesystem::remove(
+        git_dir_ / "MERGE_HEAD"
+    );
+
+    std::filesystem::remove(
+        git_dir_ / "MERGE_ORIG_HEAD"
+    );
+
+    std::filesystem::remove(
+        git_dir_ / "MERGE_MSG"
+    );
+
+    std::filesystem::remove(
+        git_dir_ / "MERGE_CONFLICTS"
+    );
 }
 
 void Repository::checkout(

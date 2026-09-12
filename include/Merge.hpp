@@ -21,6 +21,12 @@ public:
         const std::string& message = ""
     );
 
+    std::string continue_merge(
+        const std::string& author
+    );
+
+    void abort_merge();
+
 private:
     using Snapshot =
         std::map<std::string, std::string>;
@@ -73,6 +79,8 @@ private:
         const std::string& current_commit
     ) const;
 
+    void ensure_index_matches_working_tree() const;
+
     void write_snapshot(
         const Snapshot& snapshot
     ) const;
@@ -83,6 +91,19 @@ private:
 
     void synchronize_index(
         const std::map<std::string, std::string>& files
+    ) const;
+
+    void write_conflict_files(
+        const Snapshot& current,
+        const Snapshot& target,
+        const std::vector<std::string>& conflicts,
+        const std::string& branch
+    ) const;
+
+    std::string conflict_content(
+        const OptionalContent& current,
+        const OptionalContent& target,
+        const std::string& branch
     ) const;
 
     Repository& repository_;

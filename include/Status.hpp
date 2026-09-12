@@ -10,6 +10,10 @@ struct StatusResult {
     std::vector<std::string> modified;
     std::vector<std::string> deleted;
     std::vector<std::string> untracked;
+
+    bool merge_in_progress = false;
+
+    std::vector<std::string> conflicts;
 };
 
 class Status {
@@ -22,9 +26,15 @@ public:
     StatusResult collect();
 
 private:
-    void collect_modified(StatusResult& result);
+    void collect_modified(
+        StatusResult& result
+    );
 
     void collect_untracked(
+        StatusResult& result
+    );
+
+    void collect_merge_state(
         StatusResult& result
     );
 

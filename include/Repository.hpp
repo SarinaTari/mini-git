@@ -46,6 +46,37 @@ public:
         const std::string& commit_id
     ) const;
 
+    // ========================================================
+    // Merge state
+    // ========================================================
+
+    bool merge_in_progress() const;
+
+    std::string merge_head() const;
+
+    std::string merge_orig_head() const;
+
+    std::string merge_message() const;
+
+    std::vector<std::string> merge_conflicts() const;
+
+    bool is_merge_conflict(
+        const std::string& path
+    ) const;
+
+    void begin_merge_state(
+        const std::string& original_head,
+        const std::string& merge_head,
+        const std::string& message,
+        const std::vector<std::string>& conflicts
+    ) const;
+
+    void resolve_merge_conflict(
+        const std::string& path
+    ) const;
+
+    void clear_merge_state() const;
+
 private:
     std::string read_head() const;
 

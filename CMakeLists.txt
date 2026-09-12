@@ -434,3 +434,40 @@ add_test(
     NAME MergeTests
     COMMAND merge-tests
 )
+
+# ============================================================
+# Phase 16 - Merge State Tests
+# ============================================================
+
+add_executable(
+    merge-state-tests
+    tests/MergeStateTests.cpp
+    src/Merge.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/ObjectDatabase.cpp
+    src/Commit.cpp
+    src/Tree.cpp
+    src/Blob.cpp
+    src/FileReader.cpp
+    src/TreeBuilder.cpp
+    src/Index.cpp
+    src/Hash.cpp
+)
+
+target_include_directories(
+    merge-state-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    merge-state-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME MergeStateTests
+    COMMAND merge-state-tests
+)

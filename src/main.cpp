@@ -12,6 +12,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -35,6 +36,8 @@ void print_usage()
         << "  mini-git branch <name>\n"
         << "  mini-git checkout <branch>\n"
         << "  mini-git merge <branch>\n"
+        << "  mini-git merge --continue\n"
+        << "  mini-git merge --abort\n"
         << "  mini-git diff\n"
         << "  mini-git diff --cached\n"
         << "  mini-git diff <commit>\n"
@@ -186,7 +189,8 @@ void command_diff(
 
 void command_merge(
     Repository& repository,
-    const std::string& branch
+    int argc,
+    char* argv[]
 )
 {
     const char* user =
@@ -198,6 +202,46 @@ void command_merge(
             : "unknown";
 
     Merge merge(repository);
+
+    if (
+        argc == 3 &&
+        std::string(argv[2]) == "--continue"
+    ) {
+        const std::string result =
+            merge.continue_merge(author);
+
+        std::cout
+            << "Merge completed.\n"
+            << "Result: "
+            << result
+            << '\n';
+
+        return;
+    }
+
+    if (
+        argc == 3 &&
+        std::string(argv[2]) == "--abort"
+    ) {
+        merge.abort_merge();
+
+        std::cout
+            << "Merge aborted.\n";
+
+        return;
+    }
+
+    if (argc != 3) {
+        throw std::runtime_error(
+            "Usage:\n"
+            "  mini-git merge <branch>\n"
+            "  mini-git merge --continue\n"
+            "  mini-git merge --abort"
+        );
+    }
+
+    const std::string branch =
+        argv[2];
 
     const std::string current =
         repository.head_commit();
@@ -288,18 +332,13 @@ int main(
         }
 
         if (command == "merge") {
-            if (argc != 3) {
-                throw std::runtime_error(
-                    "Usage: mini-git merge <branch>"
-                );
-            }
-
             Repository repository =
                 open_repository();
 
             command_merge(
                 repository,
-                argv[2]
+                argc,
+                argv
             );
 
             return 0;
@@ -379,6 +418,16 @@ int main(
                     std::filesystem::current_path()
                 );
 
+            if (
+                !std::filesystem::exists(file) ||
+                !std::filesystem::is_regular_file(file)
+            ) {
+                throw std::runtime_error(
+                    "File does not exist: " +
+                    relative.generic_string()
+                );
+            }
+
             Blob blob =
                 Blob::from_file(file);
 
@@ -404,10 +453,27 @@ int main(
 
             index.save();
 
-            std::cout
-                << "Added "
-                << relative.generic_string()
-                << '\n';
+            if (
+                repository.merge_in_progress() &&
+                repository.is_merge_conflict(
+                    relative.generic_string()
+                )
+            ) {
+                repository.resolve_merge_conflict(
+                    relative.generic_string()
+                );
+
+                std::cout
+                    << "Resolved merge conflict: "
+                    << relative.generic_string()
+                    << '\n';
+            }
+            else {
+                std::cout
+                    << "Added "
+                    << relative.generic_string()
+                    << '\n';
+            }
 
             return 0;
         }
@@ -415,6 +481,12 @@ int main(
         if (command == "status") {
             Repository repository =
                 open_repository();
+
+            Index index(
+                repository.git_directory() / "index"
+            );
+
+            index.load();
 
             if (
                 !repository.is_detached_head()
@@ -443,6 +515,84 @@ int main(
                 }
             }
 
+            Status status(
+                repository.root(),
+                index
+            );
+
+            const StatusResult result =
+                status.collect();
+
+            if (result.merge_in_progress) {
+                std::cout
+                    << "\nMerge in progress.\n";
+
+                if (result.conflicts.empty()) {
+                    std::cout
+                        << "All merge conflicts are "
+                           "resolved.\n";
+                }
+                else {
+                    std::cout
+                        << "Unresolved conflicts:\n";
+
+                    for (
+                        const auto& path :
+                        result.conflicts
+                    ) {
+                        std::cout
+                            << "  "
+                            << path
+                            << '\n';
+                    }
+                }
+            }
+
+            if (!result.modified.empty()) {
+                std::cout
+                    << "\nModified:\n";
+
+                for (
+                    const auto& path :
+                    result.modified
+                ) {
+                    std::cout
+                        << "  "
+                        << path
+                        << '\n';
+                }
+            }
+
+            if (!result.deleted.empty()) {
+                std::cout
+                    << "\nDeleted:\n";
+
+                for (
+                    const auto& path :
+                    result.deleted
+                ) {
+                    std::cout
+                        << "  "
+                        << path
+                        << '\n';
+                }
+            }
+
+            if (!result.untracked.empty()) {
+                std::cout
+                    << "\nUntracked:\n";
+
+                for (
+                    const auto& path :
+                    result.untracked
+                ) {
+                    std::cout
+                        << "  "
+                        << path
+                        << '\n';
+                }
+            }
+
             return 0;
         }
 
@@ -460,11 +610,21 @@ int main(
                 open_repository();
 
             if (
+                repository.merge_in_progress()
+            ) {
+                throw std::runtime_error(
+                    "A merge is in progress. "
+                    "Resolve conflicts and run "
+                    "'mini-git merge --continue'"
+                );
+            }
+
+            if (
                 repository.is_detached_head()
             ) {
                 throw std::runtime_error(
                     "Cannot commit on detached HEAD "
-                    "in Phase 13"
+                    "in Phase 16"
                 );
             }
 
