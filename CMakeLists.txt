@@ -42,6 +42,10 @@ add_executable(
     src/StorageAnalyzer.cpp
     src/Benchmark.cpp
     src/ObjectType.cpp
+    src/Reachability.cpp
+    src/IntegrityChecker.cpp
+    src/Ancestry.cpp
+    src/GarbageCollector.cpp
 )
 
 target_include_directories(
@@ -826,4 +830,177 @@ target_link_libraries(
 add_test(
     NAME ObjectTypeTests
     COMMAND object-type-tests
+)
+
+# ============================================================
+# Phase 19 - Repository Integrity & Reachability Tests
+# ============================================================
+
+add_executable(
+    reachability-tests
+    tests/ReachabilityTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Index.cpp
+    src/FileReader.cpp
+    src/Reachability.cpp
+)
+
+target_include_directories(
+    reachability-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    reachability-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME ReachabilityTests
+    COMMAND reachability-tests
+)
+
+
+add_executable(
+    integrity-tests
+    tests/IntegrityTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Index.cpp
+    src/FileReader.cpp
+    src/Reachability.cpp
+    src/IntegrityChecker.cpp
+    src/ObjectType.cpp
+)
+
+target_include_directories(
+    integrity-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    integrity-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME IntegrityTests
+    COMMAND integrity-tests
+)
+
+
+add_executable(
+    fsck-tests
+    tests/FsckTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Index.cpp
+    src/FileReader.cpp
+    src/Reachability.cpp
+    src/IntegrityChecker.cpp
+    src/ObjectType.cpp
+)
+
+target_include_directories(
+    fsck-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    fsck-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME FsckTests
+    COMMAND fsck-tests
+)
+
+
+add_executable(
+    ancestry-tests
+    tests/AncestryTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Index.cpp
+    src/FileReader.cpp
+    src/Ancestry.cpp
+)
+
+target_include_directories(
+    ancestry-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    ancestry-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME AncestryTests
+    COMMAND ancestry-tests
+)
+
+
+add_executable(
+    garbage-collection-tests
+    tests/GarbageCollectionTests.cpp
+    src/Repository.cpp
+    src/Reference.cpp
+    src/Hash.cpp
+    src/Blob.cpp
+    src/Tree.cpp
+    src/Commit.cpp
+    src/ObjectDatabase.cpp
+    src/Index.cpp
+    src/FileReader.cpp
+    src/Reachability.cpp
+    src/GarbageCollector.cpp
+)
+
+target_include_directories(
+    garbage-collection-tests
+    PRIVATE
+    include
+)
+
+target_link_libraries(
+    garbage-collection-tests
+    PRIVATE
+    OpenSSL::Crypto
+)
+
+add_test(
+    NAME GarbageCollectionTests
+    COMMAND garbage-collection-tests
 )

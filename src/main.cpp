@@ -18,6 +18,10 @@
 #include "Doctor.hpp"
 #include "Impact.hpp"
 #include "StorageAnalyzer.hpp"
+#include "Ancestry.hpp"
+#include "GarbageCollector.hpp"
+#include "IntegrityChecker.hpp"
+#include "Reachability.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -28,8 +32,8 @@
 
 namespace {
 
-void print_usage()
-{
+void print_usage() {
+
     std::cout
         << "Mini Git\n\n"
         << "Usage:\n"
@@ -38,24 +42,39 @@ void print_usage()
         << "  mini-git hash-file <file>\n"
         << "  mini-git hash-object <file>\n"
         << "  mini-git add <file>\n"
+        << "  mini-git add .\n"
         << "  mini-git status\n"
         << "  mini-git commit -m <message>\n"
         << "  mini-git log\n"
         << "  mini-git branch\n"
         << "  mini-git branch <name>\n"
         << "  mini-git checkout <branch>\n"
-        << "  mini-git merge <branch>\n"
-        << "  mini-git merge --continue\n"
-        << "  mini-git merge --abort\n"
         << "  mini-git diff\n"
         << "  mini-git diff --cached\n"
         << "  mini-git diff <commit>\n"
         << "  mini-git diff <commit> <commit>\n"
+        << "  mini-git merge <branch>\n"
+        << "  mini-git merge --continue\n"
+        << "  mini-git merge --abort\n"
         << "  mini-git tag\n"
         << "  mini-git tag <name>\n"
         << "  mini-git tag <name> <commit>\n"
         << "  mini-git tag --show <name>\n"
-        << "  mini-git tag --delete <name>\n";
+        << "  mini-git tag --delete <name>\n"
+        << "  mini-git inspect <object>\n"
+        << "  mini-git explain <command>\n"
+        << "  mini-git graph\n"
+        << "  mini-git stats\n"
+        << "  mini-git analyze\n"
+        << "  mini-git impact <file>\n"
+        << "  mini-git doctor\n"
+        << "  mini-git storage\n"
+        << "  mini-git benchmark\n"
+        << "  mini-git fsck\n"
+        << "  mini-git reachability\n"
+        << "  mini-git gc --dry-run\n"
+        << "  mini-git merge-base <commit> <commit>\n"
+        << "  mini-git is-ancestor <ancestor> <descendant>\n";
 }
 
 Repository open_repository()
@@ -1072,6 +1091,181 @@ int main(
                 << benchmark.render();
 
             return 0;
+        }
+
+        if (command == "fsck") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git fsck"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            IntegrityChecker checker(
+                repository.git_directory()
+            );
+
+            std::cout
+                << checker.render();
+
+            const IntegrityReport report =
+                checker.check();
+
+            return report.repository_consistent()
+                ? 0
+                : 1;
+        }
+
+        if (command == "reachability") {
+
+            if (argc != 2) {
+                throw std::invalid_argument(
+                    "Usage: mini-git reachability"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            Reachability reachability(
+                repository.git_directory()
+            );
+
+            const auto reachable =
+                reachability.reachable_objects();
+
+            const auto unreachable =
+                reachability.unreachable_objects();
+
+            std::cout
+                << "Reachability Analysis\n\n";
+
+            std::cout
+                << "Reachable objects: "
+                << reachable.size()
+                << '\n';
+
+            for (const auto& object_id :
+                 reachable) {
+
+                std::cout
+                    << "  "
+                    << object_id
+                    << '\n';
+            }
+
+            std::cout
+                << "\nUnreachable objects: "
+                << unreachable.size()
+                << '\n';
+
+            for (const auto& object_id :
+                 unreachable) {
+
+                std::cout
+                    << "  "
+                    << object_id
+                    << '\n';
+            }
+
+            return 0;
+        }
+
+        if (command == "gc") {
+
+            if (
+                argc != 3 ||
+                std::string(argv[2]) != "--dry-run"
+            ) {
+                throw std::invalid_argument(
+                    "Usage: mini-git gc --dry-run"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            GarbageCollector collector(
+                repository.git_directory()
+            );
+
+            std::cout
+                << collector.render();
+
+            return 0;
+        }
+
+        if (command == "merge-base") {
+
+            if (argc != 4) {
+                throw std::invalid_argument(
+                    "Usage: mini-git merge-base "
+                    "<commit> <commit>"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            Ancestry ancestry(
+                repository.git_directory()
+            );
+
+            const auto result =
+                ancestry.merge_base(
+                    argv[2],
+                    argv[3]
+                );
+
+            if (!result) {
+                std::cout
+                    << "No common ancestor found.\n";
+
+                return 1;
+            }
+
+            std::cout
+                << *result
+                << '\n';
+
+            return 0;
+        }
+
+        if (command == "is-ancestor") {
+
+            if (argc != 4) {
+                throw std::invalid_argument(
+                    "Usage: mini-git is-ancestor "
+                    "<ancestor> <descendant>"
+                );
+            }
+
+            Repository repository =
+                open_repository();
+
+            Ancestry ancestry(
+                repository.git_directory()
+            );
+
+            const bool result =
+                ancestry.is_ancestor(
+                    argv[2],
+                    argv[3]
+                );
+
+            if (result) {
+                std::cout
+                    << "true\n";
+                return 0;
+            }
+
+            std::cout
+                << "false\n";
+
+            return 1;
         }
 
         print_usage();
